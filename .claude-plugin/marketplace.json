@@ -40,6 +40,7 @@
         "./commands/run-tests.md",
         "./commands/test-env.md",
         "./commands/validate-plugin.md",
+        "./commands/validate-full.md",
         "./commands/suggest.md",
         "./commands/load.md",
         "./commands/skills.md",
@@ -58,7 +59,9 @@
         "./agents/hook-reasoning-engine.md",
         "./agents/intent-analyzer.md",
         "./agents/architectural-smell-detector.md",
-        "./agents/extraction-recommender.md"
+        "./agents/extraction-recommender.md",
+        "./agents/semantic-librarian.md",
+        "./agents/form-selection-auditor.md"
       ]
     }
   ]

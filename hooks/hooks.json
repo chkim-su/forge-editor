@@ -192,6 +192,16 @@
       "pattern-compliance-guard.py": "W033/W034 runtime alerts for agents launched via Task",
       "functional-test.py": "Context-aware functional tests (structure, registration, dependencies)",
       "solution-synthesis-gate.py": "W035 enforcement - warns when ANALYZE completes without Solution Synthesis"
+    },
+    "comprehensive_validators": {
+      "W037": "Non-English content detection (Korean text in code/docs)",
+      "W038": "Emoji usage detection (discourages emojis in code)",
+      "W040": "Form selection audit (Agent/Skill/Hook/Command appropriateness)",
+      "W045": "Test bed validation (TEST-RESULTS.md, E2E infrastructure)"
+    },
+    "semantic_agents": {
+      "semantic-librarian": "Scans all plugins for skills, outputs MANDATORY SKILL CHECK (84% activation)",
+      "form-selection-auditor": "LLM-based deep analysis of component form appropriateness"
     }
   }
 }

@@ -143,6 +143,30 @@ SKILL_REFERENCES = {
         "references/agent-gateway-template.md",
         "tools: [] = MCP 접근 불가. Daemon 패턴 또는 tools 명시 필요"
     ),
+    # W037: Non-English content (Korean, etc.)
+    "W037": (
+        "comprehensive-validation",
+        "references/language-guidelines.md",
+        "English preferred for code/docs; user-facing messages may use localized text"
+    ),
+    # W038: Emoji usage in code/docs
+    "W038": (
+        "comprehensive-validation",
+        "references/style-guidelines.md",
+        "Avoid emojis in code/docs; user-facing UI elements may include emojis"
+    ),
+    # W045: Test bed validation
+    "W045": (
+        "plugin-test-framework",
+        "templates/test-runner.py",
+        "Run /forge-editor:run-tests or create tests/e2e-test-runner.py"
+    ),
+    # W040: Form selection audit
+    "W040": (
+        "orchestration-patterns",
+        "references/form-selection-guide.md",
+        "Run form-selection-auditor agent for deep analysis"
+    ),
 }
 
 
@@ -1144,6 +1168,434 @@ def validate_settings_json() -> ValidationResult:
     return result
 
 
+def validate_language_preference(plugin_root: Path) -> ValidationResult:
+    """
+    W037: Detect non-English content in code and documentation.
+
+    Checks for Korean (and other non-ASCII) text in:
+    - Python/JS code comments
+    - Markdown documentation (SKILL.md, agent descriptions)
+    - YAML frontmatter descriptions
+
+    Exceptions (allowed):
+    - User-facing messages (error messages, help text patterns)
+    - i18n/localization files
+    - Example/template strings clearly marked
+    """
+    import re
+    result = ValidationResult()
+
+    # Korean character pattern (Hangul)
+    korean_pattern = re.compile(r'[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f]+')
+
+    # Patterns that indicate user-facing content (exceptions)
+    user_facing_patterns = [
+        r'error\s*[=:]\s*["\']',      # error = "..." or error: "..."
+        r'message\s*[=:]\s*["\']',    # message = "..."
+        r'print\s*\(',                 # print(...)
+        r'console\.\w+\s*\(',          # console.log(...)
+        r'raise\s+\w+Exception',       # raise SomeException
+        r'\.help\s*=',                 # argument help text
+        r'help\s*[=:]\s*["\']',       # help = "..."
+        r'description.*user',          # description for user
+        r'#\s*i18n',                   # i18n marker
+        r'#\s*user-facing',            # user-facing marker
+    ]
+    user_facing_regex = re.compile('|'.join(user_facing_patterns), re.IGNORECASE)
+
+    # Files to check
+    files_to_check = []
+
+    # Python files
+    files_to_check.extend(plugin_root.rglob("*.py"))
+    # Markdown files
+    files_to_check.extend(plugin_root.rglob("*.md"))
+    # JavaScript/TypeScript
+    files_to_check.extend(plugin_root.rglob("*.js"))
+    files_to_check.extend(plugin_root.rglob("*.ts"))
+
+    # Skip certain directories
+    skip_dirs = {'.git', 'node_modules', '__pycache__', '.pytest_cache', 'i18n', 'locales'}
+
+    issues_found = []
+
+    for filepath in files_to_check:
+        # Skip if in excluded directory
+        if any(skip in filepath.parts for skip in skip_dirs):
+            continue
+
+        try:
+            content = filepath.read_text(encoding='utf-8')
+        except (UnicodeDecodeError, IOError):
+            continue
+
+        lines = content.split('\n')
+        for line_num, line in enumerate(lines, 1):
+            # Check for Korean text
+            korean_matches = korean_pattern.findall(line)
+            if korean_matches:
+                # Check if this is a user-facing exception
+                if user_facing_regex.search(line):
+                    continue  # Skip user-facing content
+
+                rel_path = filepath.relative_to(plugin_root)
+                # Limit to first few matches per file
+                if len([i for i in issues_found if str(rel_path) in i]) < 3:
+                    sample_text = korean_matches[0][:20]
+                    issues_found.append(
+                        f"{rel_path}:{line_num}: Korean text detected: '{sample_text}...'"
+                    )
+
+    hint = get_skill_hint("W037")
+
+    if issues_found:
+        msg_parts = [
+            "W037: Non-English content detected in code/documentation",
+            "",
+            "English is preferred for maintainability and international collaboration.",
+            "User-facing messages (errors, help text) may use localized text.",
+            ""
+        ]
+        for issue in issues_found[:10]:  # Limit output
+            msg_parts.append(f"  • {issue}")
+        if len(issues_found) > 10:
+            msg_parts.append(f"  ... and {len(issues_found) - 10} more")
+        if hint:
+            msg_parts.extend(["", hint])
+        result.add_warning("\n".join(msg_parts))
+    else:
+        result.add_pass("W037: No non-English content issues detected")
+
+    return result
+
+
+def validate_emoji_usage(plugin_root: Path) -> ValidationResult:
+    """
+    W038: Detect emoji usage in code and documentation.
+
+    Checks for emojis in:
+    - Code files (Python, JS, TS)
+    - Documentation (SKILL.md, agent descriptions)
+
+    Exceptions (allowed):
+    - User-facing UI elements (status indicators)
+    - Validation output (this script's own output)
+    - Example/template strings clearly marked
+    - Files explicitly marked as UI components
+    """
+    import re
+    result = ValidationResult()
+
+    # Emoji pattern (common emoji ranges)
+    # This covers most common emojis including emoticons, symbols, etc.
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002702-\U000027B0"  # dingbats
+        "\U0001F900-\U0001F9FF"  # supplemental symbols
+        "\U00002600-\U000026FF"  # misc symbols
+        "\U0001FA00-\U0001FA6F"  # chess symbols
+        "\U0001FA70-\U0001FAFF"  # symbols extended
+        "]+",
+        flags=re.UNICODE
+    )
+
+    # Patterns that indicate allowed emoji usage (UI/status indicators)
+    allowed_patterns = [
+        r'print\s*\(.*["\'].*["\']',   # print statements (validation output)
+        r'STATUS:',                     # status indicators
+        r'result\.add_',                # validation result methods
+        r'#\s*ui-element',              # UI element marker
+        r'#\s*status-indicator',        # status indicator marker
+        r'user[_-]?facing',             # user-facing marker
+        r'\.add_error\(',               # validation error output
+        r'\.add_warning\(',             # validation warning output
+        r'\.add_pass\(',                # validation pass output
+    ]
+    allowed_regex = re.compile('|'.join(allowed_patterns), re.IGNORECASE)
+
+    # Files to check
+    files_to_check = []
+    files_to_check.extend(plugin_root.rglob("*.py"))
+    files_to_check.extend(plugin_root.rglob("*.md"))
+    files_to_check.extend(plugin_root.rglob("*.js"))
+    files_to_check.extend(plugin_root.rglob("*.ts"))
+
+    # Skip certain directories and files
+    skip_dirs = {'.git', 'node_modules', '__pycache__', '.pytest_cache'}
+    skip_files = {'validate_all.py'}  # This script uses emojis for output
+
+    issues_found = []
+
+    for filepath in files_to_check:
+        # Skip if in excluded directory
+        if any(skip in filepath.parts for skip in skip_dirs):
+            continue
+        # Skip specific files
+        if filepath.name in skip_files:
+            continue
+
+        try:
+            content = filepath.read_text(encoding='utf-8')
+        except (UnicodeDecodeError, IOError):
+            continue
+
+        lines = content.split('\n')
+        for line_num, line in enumerate(lines, 1):
+            # Check for emojis
+            emoji_matches = emoji_pattern.findall(line)
+            if emoji_matches:
+                # Check if this is an allowed usage
+                if allowed_regex.search(line):
+                    continue
+
+                rel_path = filepath.relative_to(plugin_root)
+                # Limit to first few matches per file
+                if len([i for i in issues_found if str(rel_path) in i]) < 3:
+                    emojis = ''.join(emoji_matches)[:5]
+                    issues_found.append(
+                        f"{rel_path}:{line_num}: Emoji detected: {emojis}"
+                    )
+
+    hint = get_skill_hint("W038")
+
+    if issues_found:
+        msg_parts = [
+            "W038: Emoji usage detected in code/documentation",
+            "",
+            "Emojis are discouraged in code for professionalism and accessibility.",
+            "User-facing UI elements and status indicators may include emojis.",
+            ""
+        ]
+        for issue in issues_found[:10]:
+            msg_parts.append(f"  • {issue}")
+        if len(issues_found) > 10:
+            msg_parts.append(f"  ... and {len(issues_found) - 10} more")
+        if hint:
+            msg_parts.extend(["", hint])
+        result.add_warning("\n".join(msg_parts))
+    else:
+        result.add_pass("W038: No emoji usage issues detected")
+
+    return result
+
+
+def validate_test_coverage(plugin_root: Path) -> ValidationResult:
+    """
+    W045: Validate test bed testing completion.
+
+    Checks for:
+    - TEST-RESULTS.md existence
+    - Test pass status
+    - Recent test execution (within 24 hours for deployment)
+    - E2E test infrastructure presence
+
+    This is a MANDATORY gate for deployment.
+    """
+    from datetime import datetime, timedelta
+    import re
+    result = ValidationResult()
+
+    test_results_path = plugin_root / "TEST-RESULTS.md"
+    test_runner_path = plugin_root / "tests" / "test-runner.py"
+    e2e_runner_path = plugin_root / "tests" / "e2e-test-runner.py"
+
+    # Alternative locations
+    alt_test_runner = plugin_root / "skills" / "plugin-test-framework" / "templates" / "test-runner.py"
+
+    issues = []
+    passed_checks = []
+
+    # Check 1: TEST-RESULTS.md exists
+    if not test_results_path.exists():
+        issues.append("TEST-RESULTS.md not found - run tests before deployment")
+    else:
+        content = test_results_path.read_text()
+
+        # Check 2: Verify tests passed
+        if "ALL TESTS PASSED" in content or "Status: PASSED" in content.upper():
+            passed_checks.append("Tests passed")
+        elif "FAILED" in content.upper():
+            issues.append("TEST-RESULTS.md shows test failures - fix before deployment")
+        else:
+            issues.append("TEST-RESULTS.md status unclear - verify test results")
+
+        # Check 3: Recent test execution
+        date_match = re.search(r'\*\*Date:\*\*\s*(\d{4}-\d{2}-\d{2})', content)
+        if date_match:
+            test_date_str = date_match.group(1)
+            try:
+                test_date = datetime.strptime(test_date_str, "%Y-%m-%d")
+                now = datetime.now()
+                age = now - test_date
+
+                if age > timedelta(days=7):
+                    issues.append(
+                        f"Tests are {age.days} days old - re-run for deployment "
+                        f"(max 7 days)"
+                    )
+                elif age > timedelta(days=1):
+                    # Warning but not blocking
+                    passed_checks.append(f"Tests run {age.days} days ago (consider re-running)")
+                else:
+                    passed_checks.append("Tests run recently")
+            except ValueError:
+                pass  # Could not parse date
+
+    # Check 4: Test infrastructure exists
+    has_test_runner = (
+        test_runner_path.exists() or
+        alt_test_runner.exists() or
+        (plugin_root / "run-tests.sh").exists()
+    )
+
+    if has_test_runner:
+        passed_checks.append("Test runner infrastructure present")
+    else:
+        issues.append("No test runner found (tests/test-runner.py or run-tests.sh)")
+
+    # Check 5: E2E test infrastructure (MANDATORY per user decision)
+    # Check for any e2e test related files
+    e2e_files = list(plugin_root.rglob("*e2e*.py")) + list(plugin_root.rglob("*e2e*.sh"))
+    has_e2e = len(e2e_files) > 0 or e2e_runner_path.exists()
+
+    if has_e2e:
+        passed_checks.append("E2E test infrastructure present")
+    else:
+        # This is an ERROR since user chose E2E as mandatory
+        issues.append(
+            "E2E test infrastructure not found - create tests/e2e-test-runner.py or e2e tests"
+        )
+
+    # Check 6: hooks.json has test hooks configured
+    hooks_path = plugin_root / "hooks" / "hooks.json"
+    if hooks_path.exists():
+        try:
+            hooks_data = json.loads(hooks_path.read_text())
+            # Check if Stop hook has test enforcement
+            stop_hooks = hooks_data.get("hooks", [])
+            has_test_hook = any(
+                "test" in str(h).lower() or "plugin-test" in str(h).lower()
+                for h in stop_hooks
+                if isinstance(h, dict) and h.get("hook_event_name") == "Stop"
+            )
+            if has_test_hook:
+                passed_checks.append("Stop hook has test enforcement")
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    hint = get_skill_hint("W045")
+
+    if issues:
+        msg_parts = [
+            "W045: Test bed validation incomplete - DEPLOYMENT BLOCKED",
+            "",
+            "Test bed testing is MANDATORY before deployment.",
+            "All tests must pass within 7 days of deployment.",
+            ""
+        ]
+        for issue in issues:
+            msg_parts.append(f"  [X] {issue}")
+        for passed in passed_checks:
+            msg_parts.append(f"  [+] {passed}")
+        msg_parts.extend([
+            "",
+            "To fix: Run /forge-editor:run-tests or python3 tests/test-runner.py"
+        ])
+        if hint:
+            msg_parts.extend(["", hint])
+        result.add_error("\n".join(msg_parts))
+    else:
+        for passed in passed_checks:
+            result.add_pass(f"W045: {passed}")
+
+    return result
+
+
+def validate_form_selection(plugin_root: Path) -> ValidationResult:
+    """
+    W040: Check if form selection audit has been performed.
+
+    This is a soft check that recommends running the form-selection-auditor
+    agent for LLM-based deep analysis of component appropriateness.
+
+    Checks for:
+    - FORM-AUDIT.md existence (audit report)
+    - Recent audit (within 30 days)
+    - No critical issues in audit
+    """
+    from datetime import datetime, timedelta
+    import re
+    result = ValidationResult()
+
+    audit_path = plugin_root / "FORM-AUDIT.md"
+
+    # Count components for context
+    agents = list((plugin_root / "agents").glob("*.md")) if (plugin_root / "agents").exists() else []
+    skills = list((plugin_root / "skills").glob("*/SKILL.md")) if (plugin_root / "skills").exists() else []
+    commands = list((plugin_root / "commands").glob("*.md")) if (plugin_root / "commands").exists() else []
+
+    total_components = len(agents) + len(skills) + len(commands)
+
+    if not audit_path.exists():
+        # Only warn if there are significant components
+        if total_components >= 5:
+            hint = get_skill_hint("W040")
+            msg_parts = [
+                f"W040: Form selection audit recommended ({total_components} components)",
+                "",
+                "LLM-based analysis can verify each component uses the optimal form:",
+                "  - Agent: multi-step, autonomous tasks",
+                "  - Skill: reusable knowledge/guidelines",
+                "  - Hook: event-driven enforcement",
+                "  - Command: user-initiated actions",
+                "",
+                "To run audit:",
+                '  Task(subagent_type="forge-editor:form-selection-auditor",'
+                '       prompt="Audit form selection for this plugin")',
+            ]
+            if hint:
+                msg_parts.extend(["", hint])
+            result.add_warning("\n".join(msg_parts))
+        else:
+            result.add_pass(f"W040: Small plugin ({total_components} components) - audit optional")
+    else:
+        content = audit_path.read_text()
+
+        # Check for critical issues
+        wrong_count = content.lower().count("wrong")
+        suboptimal_count = content.lower().count("suboptimal")
+
+        if wrong_count > 0:
+            result.add_warning(
+                f"W040: Form audit found {wrong_count} WRONG form selection(s) - review FORM-AUDIT.md"
+            )
+        elif suboptimal_count > 2:
+            result.add_warning(
+                f"W040: Form audit found {suboptimal_count} suboptimal selections - consider refactoring"
+            )
+        else:
+            result.add_pass("W040: Form selection audit completed")
+
+        # Check audit age
+        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', content)
+        if date_match:
+            try:
+                audit_date = datetime.strptime(date_match.group(1), "%Y-%m-%d")
+                age = datetime.now() - audit_date
+                if age > timedelta(days=30):
+                    result.add_warning(
+                        f"W040: Form audit is {age.days} days old - consider re-running"
+                    )
+            except ValueError:
+                pass
+
+    return result
+
+
 def apply_fixes(fixes: List[Fix], dry_run: bool = False) -> Tuple[int, int]:
     """Apply all fixes. Returns (success_count, fail_count)."""
     success = 0
@@ -1252,6 +1704,10 @@ def main():
         total_result.merge(validate_scripts(effective_root))
         total_result.merge(validate_hookify_compliance(effective_root))
         total_result.merge(validate_unnecessary_files(effective_root))
+        total_result.merge(validate_language_preference(effective_root))
+        total_result.merge(validate_emoji_usage(effective_root))
+        total_result.merge(validate_test_coverage(effective_root))
+        total_result.merge(validate_form_selection(effective_root))
 
     # Output results
     if json_output:

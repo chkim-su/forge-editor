@@ -1,6 +1,6 @@
 # Plugin Test Results
-**Date:** 2026-01-05T19:59:21.838895
-**Directory:** /home/chanhokim/projects/personal_project/claude-plugin/foundry-editor
+**Date:** 2026-01-06T00:44:43.287817
+**Directory:** /home/chanhokim/projects/personal_project/claude-plugin/forge-editor
 
 ## Plugin
 - ✅ Commands have frontmatter
