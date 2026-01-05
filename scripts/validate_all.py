@@ -1173,6 +1173,7 @@ def main():
     json_output = "--json" in sys.argv
     fix_mode = "--fix" in sys.argv
     dry_run = "--dry-run" in sys.argv
+    quiet = "--quiet" in sys.argv
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
 
     plugin_root = Path(args[0]).resolve() if args else Path.cwd()
@@ -1311,12 +1312,12 @@ def main():
         print(f"   python3 {sys.argv[0]} --fix --dry-run  # Preview only")
 
     # Exit code
+    # Only errors block (exit 1). Warnings are advisory (exit 0).
+    # This prevents hooks from blocking tool use on warnings.
     if total_result.errors and not (fix_mode and not dry_run):
         sys.exit(1)
-    elif total_result.warnings:
-        sys.exit(2)
     else:
-        sys.exit(0)
+        sys.exit(0)  # Warnings don't block
 
 
 if __name__ == "__main__":
