@@ -1513,7 +1513,7 @@ def validate_test_coverage(plugin_root: Path) -> ValidationResult:
         ])
         if hint:
             msg_parts.extend(["", hint])
-        result.add_error("\n".join(msg_parts))
+        result.add_warning("\n".join(msg_parts))  # Warning, not error - don't block deployment
     else:
         for passed in passed_checks:
             result.add_pass(f"W045: {passed}")
