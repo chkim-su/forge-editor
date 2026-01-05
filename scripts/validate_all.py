@@ -173,6 +173,12 @@ SKILL_REFERENCES = {
         "references/integration-checklist.md",
         "Ensure all components are connected and referenced"
     ),
+    # E021: Marketplace deployment schema
+    "E021": (
+        "wizard",
+        "references/route-publish.md",
+        "Marketplace requires owner and plugins[] fields"
+    ),
 }
 
 
@@ -1742,6 +1748,100 @@ def validate_connectivity(plugin_root: Path) -> ValidationResult:
     return result
 
 
+def validate_marketplace_schema(data: dict, marketplace_path: Path) -> ValidationResult:
+    """
+    E021: Validate marketplace.json schema for marketplace deployment.
+
+    Marketplace deployment requires:
+    - owner: { name: string } - Publisher information
+    - plugins: array - List of plugins in the bundle
+    - Each plugin needs: name, source
+
+    This validation ensures the plugin can be deployed to marketplace.
+    """
+    result = ValidationResult()
+
+    # Check owner field (required for marketplace deployment)
+    owner = data.get("owner")
+    if not owner:
+        hint = get_skill_hint("E021", "marketplace owner field")
+        result.add_error(
+            f"E021: Missing 'owner' field in marketplace.json\n"
+            f"       Marketplace deployment requires: \"owner\": {{ \"name\": \"Your Name\" }}{hint}"
+        )
+    elif not isinstance(owner, dict):
+        result.add_error(
+            f"E021: 'owner' must be an object with 'name' property\n"
+            f"       Expected: \"owner\": {{ \"name\": \"Your Name\" }}\n"
+            f"       Got: {type(owner).__name__}"
+        )
+    elif not owner.get("name"):
+        result.add_error(
+            f"E021: 'owner.name' is required\n"
+            f"       Expected: \"owner\": {{ \"name\": \"Your Name\" }}"
+        )
+    else:
+        result.add_pass("E021: owner field valid")
+
+    # Check plugins array (required for marketplace deployment)
+    plugins = data.get("plugins")
+    if not plugins:
+        hint = get_skill_hint("E021", "marketplace plugins array")
+        result.add_error(
+            f"E021: Missing 'plugins' array in marketplace.json\n"
+            f"       Marketplace deployment requires: \"plugins\": [{{ \"name\": \"...\", \"source\": \"./\" }}]{hint}"
+        )
+    elif not isinstance(plugins, list):
+        result.add_error(
+            f"E021: 'plugins' must be an array\n"
+            f"       Expected: \"plugins\": [...]\n"
+            f"       Got: {type(plugins).__name__}"
+        )
+    elif len(plugins) == 0:
+        result.add_error(
+            f"E021: 'plugins' array cannot be empty\n"
+            f"       At least one plugin definition is required"
+        )
+    else:
+        # Validate each plugin entry
+        for i, plugin in enumerate(plugins):
+            if not isinstance(plugin, dict):
+                result.add_error(f"E021: plugins[{i}] must be an object, got {type(plugin).__name__}")
+                continue
+
+            plugin_name = plugin.get("name")
+            plugin_source = plugin.get("source")
+
+            if not plugin_name:
+                result.add_error(f"E021: plugins[{i}] missing required 'name' field")
+
+            if not plugin_source:
+                result.add_error(f"E021: plugins[{i}] missing required 'source' field (e.g., \"./\")")
+
+        if not result.errors or not any("plugins" in e for e in result.errors):
+            result.add_pass(f"E021: plugins array valid ({len(plugins)} plugin(s))")
+
+    # Check for recommended fields (warnings, not errors)
+    if not data.get("name"):
+        result.add_warning(
+            "E021: Consider adding 'name' field for marketplace listing\n"
+            "       Example: \"name\": \"my-plugin-marketplace\""
+        )
+
+    if not data.get("version"):
+        result.add_warning(
+            "E021: Consider adding 'version' field for marketplace listing\n"
+            "       Example: \"version\": \"1.0.0\""
+        )
+
+    if not data.get("description"):
+        result.add_warning(
+            "E021: Consider adding 'description' field for marketplace listing"
+        )
+
+    return result
+
+
 def apply_fixes(fixes: List[Fix], dry_run: bool = False) -> Tuple[int, int]:
     """Apply all fixes. Returns (success_count, fail_count)."""
     success = 0
@@ -1836,6 +1936,9 @@ def main():
 
     # Settings.json validation
     total_result.merge(validate_settings_json())
+
+    # Marketplace schema validation (E021)
+    total_result.merge(validate_marketplace_schema(data, marketplace_path))
 
     for i, plugin in enumerate(plugins):
         source = plugin.get("source", "./")
