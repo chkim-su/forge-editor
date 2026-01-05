@@ -1,0 +1,203 @@
+# Hook Test Cases Definition
+# Format: YAML-based test specifications for dynamic test execution
+
+version: "1.0"
+description: "Claude Code Hook Test Cases"
+
+# Global settings
+settings:
+  timeout: 10
+  log_dir: ".claude/hooks/logs"
+
+# Test case definitions
+test_cases:
+  # PreToolUse Tests
+  - name: "Block dangerous rm -rf"
+    category: "security"
+    event: "PreToolUse"
+    hook_pattern: "pretooluse*.sh"  # Glob pattern for hook discovery
+    input:
+      hook_event_name: "PreToolUse"
+      tool_name: "Bash"
+      tool_input:
+        command: "rm -rf /"
+      session_id: "test-001"
+      cwd: "/tmp/test"
+    expect:
+      exit_code: 0
+      output_contains: "deny"
+      json_path: ".hookSpecificOutput.permissionDecision"
+      json_value: "deny"
+
+  - name: "Block chmod 777"
+    category: "security"
+    event: "PreToolUse"
+    hook_pattern: "pretooluse*.sh"
+    input:
+      hook_event_name: "PreToolUse"
+      tool_name: "Bash"
+      tool_input:
+        command: "chmod 777 /etc/passwd"
+      session_id: "test-002"
+    expect:
+      output_contains: "deny"
+
+  - name: "Modify npm publish with --dry-run"
+    category: "safety"
+    event: "PreToolUse"
+    hook_pattern: "pretooluse*.sh"
+    input:
+      hook_event_name: "PreToolUse"
+      tool_name: "Bash"
+      tool_input:
+        command: "npm publish"
+      session_id: "test-003"
+    expect:
+      output_contains: "dry-run"
+      json_path: ".hookSpecificOutput.updatedInput.command"
+      json_contains: "--dry-run"
+
+  - name: "Auto-allow safe echo command"
+    category: "allow"
+    event: "PreToolUse"
+    hook_pattern: "pretooluse*.sh"
+    input:
+      hook_event_name: "PreToolUse"
+      tool_name: "Bash"
+      tool_input:
+        command: "echo hello world"
+      session_id: "test-004"
+    expect:
+      output_contains: "allow"
+      json_path: ".hookSpecificOutput.permissionDecision"
+      json_value: "allow"
+
+  - name: "Auto-allow ls command"
+    category: "allow"
+    event: "PreToolUse"
+    hook_pattern: "pretooluse*.sh"
+    input:
+      hook_event_name: "PreToolUse"
+      tool_name: "Bash"
+      tool_input:
+        command: "ls -la"
+      session_id: "test-005"
+    expect:
+      output_contains: "allow"
+
+  # PostToolUse Tests
+  - name: "Log successful tool execution"
+    category: "logging"
+    event: "PostToolUse"
+    hook_pattern: "posttooluse*.sh"
+    input:
+      hook_event_name: "PostToolUse"
+      tool_name: "Bash"
+      tool_input:
+        command: "ls -la"
+      tool_response:
+        output: "file1.txt\nfile2.txt"
+        success: true
+      tool_use_id: "toolu_test_001"
+      session_id: "test-006"
+    expect:
+      output_contains: "success: true"
+
+  - name: "Detect failed tool execution"
+    category: "logging"
+    event: "PostToolUse"
+    hook_pattern: "posttooluse*.sh"
+    input:
+      hook_event_name: "PostToolUse"
+      tool_name: "Bash"
+      tool_input:
+        command: "cat nonexistent"
+      tool_response:
+        error: "File not found"
+        failed: true
+      tool_use_id: "toolu_test_002"
+      session_id: "test-007"
+    expect:
+      output_contains: "success: false"
+
+  # UserPromptSubmit Tests
+  - name: "Context injection via stdout"
+    category: "context"
+    event: "UserPromptSubmit"
+    hook_pattern: "context*.sh"
+    input:
+      hook_event_name: "UserPromptSubmit"
+      prompt: "Help me with testing"
+      session_id: "test-008"
+      cwd: "/tmp/test"
+    expect:
+      output_contains: "CONTEXT"
+      exit_code: 0
+
+  # Stop Tests
+  - name: "Stop hook prevents infinite loop"
+    category: "control"
+    event: "Stop"
+    hook_pattern: "stop*.sh"
+    input:
+      hook_event_name: "Stop"
+      stop_hook_active: true
+      session_id: "test-009"
+    expect:
+      exit_code: 0
+      # Should exit immediately when stop_hook_active is true
+
+  - name: "Stop hook can block completion"
+    category: "control"
+    event: "Stop"
+    hook_pattern: "stop*.sh"
+    input:
+      hook_event_name: "Stop"
+      stop_hook_active: false
+      session_id: "test-010"
+    expect:
+      exit_code: 0
+      # May block if workflow incomplete
+
+# Plugin structure validation
+plugin_validation:
+  - name: "plugin.json exists and valid"
+    path: ".claude-plugin/plugin.json"
+    required_fields: ["name", "description"]
+
+  - name: "Commands have frontmatter"
+    path: "commands/*.md"
+    required_pattern: "^---"
+    required_fields_in_frontmatter: ["description"]
+
+  - name: "Skills have SKILL.md"
+    path: "skills/*/SKILL.md"
+    required: true
+
+# Agent validation
+agent_validation:
+  - name: "Agents have description"
+    path: "agents/*.md"
+    required_fields_in_frontmatter: ["description"]
+
+  - name: "Agents have allowed-tools"
+    path: "agents/*.md"
+    required_fields_in_frontmatter: ["allowed-tools"]
+
+  - name: "Agent tools are valid"
+    path: "agents/*.md"
+    valid_tools:
+      - Read
+      - Write
+      - Edit
+      - Bash
+      - Glob
+      - Grep
+      - Task
+      - TodoWrite
+      - WebFetch
+      - WebSearch
+      - AskUserQuestion
+      - Skill
+      - NotebookEdit
+      - KillShell

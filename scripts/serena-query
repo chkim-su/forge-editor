@@ -1,0 +1,394 @@
+#!/usr/bin/env python3
+"""
+serena-query: Serena daemon 쿼리 도구 (컨텍스트 격리)
+
+사용법:
+  serena-query <tool> [args...] [--output FILE]
+
+예시:
+  serena-query list_dir .
+  serena-query get_symbols_overview src/main.py --depth 1
+  serena-query find_symbol UserService --path src/
+  serena-query search_for_pattern "class.*Service" --output /tmp/result.json
+"""
+
+import asyncio
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+try:
+    import httpx
+except ImportError:
+    print("ERROR: pip install httpx", file=sys.stderr)
+    sys.exit(1)
+
+
+# ─────────────────────────────────────────────────────────────
+# MCP Client
+# ─────────────────────────────────────────────────────────────
+
+async def call_serena(tool: str, params: dict, timeout: float = 60.0) -> dict:
+    """Serena daemon SSE 호출"""
+
+    base_url = "http://localhost:8765"
+    session_id = None
+    initialized = False
+    tool_sent = False
+    msg_id = 0
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        async with client.stream("GET", f"{base_url}/sse") as sse:
+            async for line in sse.aiter_lines():
+                # 1. session_id 획득 + 초기화
+                if not session_id and line.startswith("data: ") and "session_id=" in line:
+                    session_id = line.split("session_id=")[1]
+                    msg_id += 1
+                    init_msg = {
+                        "jsonrpc": "2.0", "id": msg_id, "method": "initialize",
+                        "params": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {},
+                            "clientInfo": {"name": "serena-query", "version": "0.1.0"}
+                        }
+                    }
+                    await client.post(f"{base_url}/messages/?session_id={session_id}", json=init_msg)
+                    continue
+
+                if not line.startswith("data: "):
+                    continue
+
+                try:
+                    data = json.loads(line[6:])
+                except:
+                    continue
+
+                # 2. 초기화 응답 → 도구 호출
+                if not initialized and data.get("id") == 1:
+                    initialized = True
+                    await client.post(f"{base_url}/messages/?session_id={session_id}",
+                                     json={"jsonrpc": "2.0", "method": "notifications/initialized"})
+                    msg_id += 1
+                    await client.post(f"{base_url}/messages/?session_id={session_id}",
+                                     json={"jsonrpc": "2.0", "id": msg_id, "method": "tools/call",
+                                           "params": {"name": tool, "arguments": params}})
+                    tool_sent = True
+                    continue
+
+                # 3. 결과 수신
+                if tool_sent and data.get("id") == msg_id:
+                    return data
+
+    return {"error": "timeout"}
+
+
+# ─────────────────────────────────────────────────────────────
+# Structured Extractors (도구별 구조화 추출)
+# ─────────────────────────────────────────────────────────────
+
+def extract_content(data: dict) -> Any:
+    """MCP 응답에서 content 추출"""
+    if "error" in data:
+        return {"_error": data["error"]}
+
+    result = data.get("result", {})
+    text = result.get("content", [{}])[0].get("text", "")
+
+    try:
+        return json.loads(text)
+    except:
+        return text
+
+
+def format_list_dir(content: Any) -> str:
+    """list_dir 결과 포맷"""
+    if isinstance(content, dict) and "_error" in content:
+        return f"Error: {content['_error']}"
+
+    if not isinstance(content, dict):
+        return str(content)[:200]
+
+    dirs = content.get("dirs", [])
+    files = content.get("files", [])
+
+    # 중요 디렉토리/파일 하이라이트
+    important_dirs = [d for d in dirs if not d.startswith(".")]
+    hidden_dirs = [d for d in dirs if d.startswith(".")]
+
+    lines = [f"📁 Dirs({len(dirs)}): {', '.join(important_dirs[:8])}"]
+    if len(important_dirs) > 8:
+        lines[0] += f" +{len(important_dirs)-8} more"
+    if hidden_dirs:
+        lines.append(f"   Hidden: {', '.join(hidden_dirs[:5])}")
+
+    # 파일은 확장자별 그룹핑
+    by_ext: dict[str, list] = {}
+    for f in files:
+        ext = Path(f).suffix or "(no ext)"
+        by_ext.setdefault(ext, []).append(f)
+
+    file_summary = ", ".join(f"{ext}({len(fs)})" for ext, fs in sorted(by_ext.items()))
+    lines.append(f"📄 Files({len(files)}): {file_summary}")
+
+    return "\n".join(lines)
+
+
+def format_symbols_overview(content: Any) -> str:
+    """get_symbols_overview 결과 포맷"""
+    if isinstance(content, dict) and "_error" in content:
+        return f"Error: {content['_error']}"
+
+    if not isinstance(content, list):
+        return str(content)[:200]
+
+    # 종류별 그룹핑
+    by_kind: dict[str, list] = {}
+    for sym in content:
+        kind = sym.get("kind", "Unknown")
+        name = sym.get("name", "?")
+        by_kind.setdefault(kind, []).append(name)
+
+    lines = []
+    for kind, names in sorted(by_kind.items()):
+        if len(names) <= 5:
+            lines.append(f"{kind}({len(names)}): {', '.join(names)}")
+        else:
+            lines.append(f"{kind}({len(names)}): {', '.join(names[:5])} +{len(names)-5}")
+
+    return "\n".join(lines) or "No symbols found"
+
+
+def format_find_symbol(content: Any) -> str:
+    """find_symbol 결과 포맷"""
+    if isinstance(content, dict) and "_error" in content:
+        return f"Error: {content['_error']}"
+
+    if not isinstance(content, list):
+        return str(content)[:200]
+
+    if not content:
+        return "No symbols found"
+
+    lines = []
+    for sym in content[:10]:  # 최대 10개
+        name = sym.get("name_path", sym.get("name", "?"))
+        kind = sym.get("kind", "?")
+        path = sym.get("relative_path", "")
+        loc = sym.get("body_location", {})
+        start = loc.get("start_line", "?")
+        end = loc.get("end_line", "?")
+
+        lines.append(f"• {name} [{kind}] @ {path}:{start}-{end}")
+
+    if len(content) > 10:
+        lines.append(f"  ... +{len(content)-10} more")
+
+    return "\n".join(lines)
+
+
+def format_search_pattern(content: Any) -> str:
+    """search_for_pattern 결과 포맷"""
+    if isinstance(content, dict) and "_error" in content:
+        return f"Error: {content['_error']}"
+
+    if isinstance(content, str):
+        # 텍스트 결과
+        lines = content.strip().split("\n")
+        if len(lines) <= 5:
+            return content
+        return "\n".join(lines[:5]) + f"\n... +{len(lines)-5} lines"
+
+    if isinstance(content, dict):
+        # 파일별 매칭
+        total = sum(len(v) if isinstance(v, list) else 1 for v in content.values())
+        files = list(content.keys())[:5]
+        result = f"Matches({total}) in {len(content)} files:\n"
+        result += "\n".join(f"  • {f}" for f in files)
+        if len(content) > 5:
+            result += f"\n  ... +{len(content)-5} files"
+        return result
+
+    return str(content)[:200]
+
+
+def format_find_references(content: Any) -> str:
+    """find_referencing_symbols 결과 포맷"""
+    if isinstance(content, dict) and "_error" in content:
+        return f"Error: {content['_error']}"
+
+    if not isinstance(content, list):
+        return str(content)[:200]
+
+    if not content:
+        return "No references found"
+
+    # 파일별 그룹핑
+    by_file: dict[str, int] = {}
+    for ref in content:
+        path = ref.get("relative_path", "unknown")
+        by_file[path] = by_file.get(path, 0) + 1
+
+    lines = [f"References({len(content)}) in {len(by_file)} files:"]
+    for path, count in sorted(by_file.items(), key=lambda x: -x[1])[:5]:
+        lines.append(f"  • {path}: {count}")
+    if len(by_file) > 5:
+        lines.append(f"  ... +{len(by_file)-5} files")
+
+    return "\n".join(lines)
+
+
+def format_generic(content: Any) -> str:
+    """기본 포맷터"""
+    if isinstance(content, dict) and "_error" in content:
+        err = content["_error"]
+        if isinstance(err, dict):
+            return f"Error: {err.get('message', err)}"
+        return f"Error: {err}"
+
+    if isinstance(content, list):
+        return f"Items: {len(content)}"
+    if isinstance(content, dict):
+        return f"Keys: {', '.join(list(content.keys())[:10])}"
+    if isinstance(content, str):
+        lines = content.split("\n")
+        return f"Lines: {len(lines)}"
+
+    return str(content)[:200]
+
+
+# 도구별 포맷터 매핑
+FORMATTERS = {
+    "list_dir": format_list_dir,
+    "get_symbols_overview": format_symbols_overview,
+    "find_symbol": format_find_symbol,
+    "search_for_pattern": format_search_pattern,
+    "find_referencing_symbols": format_find_references,
+}
+
+
+def format_location(content: Any) -> str:
+    """위치 정보만 추출 - Read 도구와 직접 연계"""
+    if isinstance(content, dict) and "_error" in content:
+        return f"Error: {content['_error']}"
+
+    if not isinstance(content, list):
+        return ""
+
+    lines = []
+    for item in content:
+        path = item.get("relative_path", "")
+        loc = item.get("body_location", item.get("location", {}))
+        start = loc.get("start_line", loc.get("line", "?"))
+        end = loc.get("end_line", start)
+        if path:
+            lines.append(f"{path}:{start}:{end}")
+
+    return "\n".join(lines)
+
+
+def summarize(tool: str, data: dict, mode: str = "summary") -> str:
+    """도구별 구조화 요약"""
+    content = extract_content(data)
+
+    # 모드별 처리
+    if mode == "full":
+        return json.dumps(content, indent=2, ensure_ascii=False)
+    elif mode == "location":
+        return format_location(content)
+
+    # 기본: summary 모드
+    formatter = FORMATTERS.get(tool, format_generic)
+    return formatter(content)
+
+
+# ─────────────────────────────────────────────────────────────
+# CLI
+# ─────────────────────────────────────────────────────────────
+
+def parse_args():
+    """간단한 인자 파싱"""
+    args = sys.argv[1:]
+
+    if not args or args[0] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+
+    tool = args[0]
+    output = None
+    mode = "summary"  # summary, location, full
+    params = {}
+
+    i = 1
+    positional_idx = 0
+    positional_map = {
+        "list_dir": ["relative_path"],
+        "get_symbols_overview": ["relative_path"],
+        "find_symbol": ["name_path_pattern"],
+        "find_file": ["file_mask", "relative_path"],
+        "search_for_pattern": ["substring_pattern"],
+        "find_referencing_symbols": ["name_path", "relative_path"],
+        "read_file": ["relative_path"],
+    }
+
+    positional_keys = positional_map.get(tool, ["relative_path"])
+
+    while i < len(args):
+        arg = args[i]
+
+        if arg == "--output" and i + 1 < len(args):
+            output = args[i + 1]
+            i += 2
+        elif arg == "--mode" and i + 1 < len(args):
+            mode = args[i + 1]
+            i += 2
+        elif arg.startswith("--"):
+            key = arg[2:].replace("-", "_")
+            if i + 1 < len(args) and not args[i + 1].startswith("--"):
+                val = args[i + 1]
+                # 타입 변환
+                if val.lower() == "true":
+                    val = True
+                elif val.lower() == "false":
+                    val = False
+                elif val.isdigit():
+                    val = int(val)
+                params[key] = val
+                i += 2
+            else:
+                params[key] = True
+                i += 1
+        else:
+            # Positional argument
+            if positional_idx < len(positional_keys):
+                params[positional_keys[positional_idx]] = arg
+                positional_idx += 1
+            i += 1
+
+    # 기본값 설정
+    if tool == "list_dir" and "recursive" not in params:
+        params["recursive"] = False
+
+    return tool, params, output, mode
+
+
+async def main():
+    tool, params, output, mode = parse_args()
+
+    if not params:
+        print(f"Error: No parameters for {tool}", file=sys.stderr)
+        sys.exit(1)
+
+    # Serena 호출
+    result = await call_serena(tool, params)
+
+    # 전체 결과 저장
+    if output:
+        Path(output).write_text(json.dumps(result, indent=2, ensure_ascii=False))
+
+    # 모드별 출력
+    print(summarize(tool, result, mode))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

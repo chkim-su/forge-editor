@@ -1,0 +1,65 @@
+{
+  "name": "forge-editor-marketplace",
+  "description": "Forge Editor: Transform vague ideas into perfect skills and agents through dimensional analysis",
+  "version": "1.0.0",
+  "owner": {
+    "name": "Chanho KIM"
+  },
+  "homepage": "https://github.com/chkim-su/forge-editor",
+  "plugins": [
+    {
+      "name": "forge-editor",
+      "description": "Forge vague ideas into clear architecture, then create skills and agents. Combines dimensional analysis with explicit skill-based development.",
+      "source": "./",
+      "version": "1.0.0",
+      "author": {
+        "name": "Chanho KIM"
+      },
+      "category": "productivity",
+      "skills": [
+        "./skills/forge-analyzer",
+        "./skills/skill-design",
+        "./skills/skill-catalog",
+        "./skills/orchestration-patterns",
+        "./skills/mcp-gateway-patterns",
+        "./skills/skill-activation-patterns",
+        "./skills/hook-templates",
+        "./skills/workflow-state-patterns",
+        "./skills/critical-analysis-patterns",
+        "./skills/mcp-daemon-isolation",
+        "./skills/wizard",
+        "./skills/hook-system",
+        "./skills/hook-capabilities",
+        "./skills/hook-sdk-integration",
+        "./skills/plugin-test-framework",
+        "./skills/llm-sdk-guide",
+        "./skills/cleanup-guide"
+      ],
+      "commands": [
+        "./commands/wizard.md",
+        "./commands/run-tests.md",
+        "./commands/test-env.md",
+        "./commands/validate-plugin.md",
+        "./commands/suggest.md",
+        "./commands/load.md",
+        "./commands/skills.md",
+        "./commands/diagnose.md"
+      ],
+      "agents": [
+        "./agents/architecture-smith.md",
+        "./agents/skill-architect.md",
+        "./agents/skill-converter.md",
+        "./agents/skill-orchestrator-designer.md",
+        "./agents/skill-rules-designer.md",
+        "./agents/mcp-gateway-designer.md",
+        "./agents/plugin-tester.md",
+        "./agents/diagnostic-orchestrator.md",
+        "./agents/content-quality-analyzer.md",
+        "./agents/hook-reasoning-engine.md",
+        "./agents/intent-analyzer.md",
+        "./agents/architectural-smell-detector.md",
+        "./agents/extraction-recommender.md"
+      ]
+    }
+  ]
+}

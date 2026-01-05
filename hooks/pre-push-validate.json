@@ -1,0 +1,13 @@
+{
+  "description": "Pre-push validation hook - add to .claude/settings.json",
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "matcher": {
+        "tool_name": "Bash",
+        "query": "git push"
+      },
+      "command": "python3 scripts/validate_all.py"
+    }
+  ]
+}
