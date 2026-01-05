@@ -53,7 +53,6 @@
         "./agents/skill-orchestrator-designer.md",
         "./agents/skill-rules-designer.md",
         "./agents/mcp-gateway-designer.md",
-        "./agents/plugin-tester.md",
         "./agents/diagnostic-orchestrator.md",
         "./agents/content-quality-analyzer.md",
         "./agents/hook-reasoning-engine.md",

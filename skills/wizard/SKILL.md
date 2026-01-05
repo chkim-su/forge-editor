@@ -55,7 +55,58 @@ AskUserQuestion:
 | `hook.*design\|proper.*hook` | HOOK_DESIGN | `Read("references/route-hook-design.md")` |
 | `skill-rules\|auto-activation\|trigger` | SKILL_RULES | `Read("references/route-skill-rules.md")` |
 | `mcp\|gateway\|isolation\|serena\|playwright` | MCP | `Read("references/route-mcp.md")` |
-| no match / ambiguous | FORGE | Invoke forge-analyzer for clarification |
+| no match / ambiguous | **SEMANTIC** | See Semantic Routing below |
+
+---
+
+## Semantic Routing (Fallback)
+
+When regex patterns fail to match, use LLM-based semantic classification:
+
+### Step 1: Invoke Semantic Librarian
+
+```
+Task(
+  subagent_type="forge-editor:semantic-librarian",
+  prompt="MODE: ROUTE_CLASSIFICATION
+
+Classify this user intent into ONE route. Output ONLY the route name.
+
+Input: '{user_input}'
+
+Routes: VALIDATE, SKILL, AGENT, COMMAND, ANALYZE, PUBLISH, MCP, HOOK_DESIGN, FORGE
+
+Output format:
+Route: {ROUTE_NAME}",
+  model="haiku"
+)
+```
+
+### Step 2: Route Mapping
+
+The semantic-librarian will analyze intent and return one of:
+- `VALIDATE` - validation, checking, verification intents
+- `SKILL` - skill creation, design intents
+- `AGENT` - agent creation, automation intents
+- `ANALYZE` - analysis, review intents
+- `PUBLISH` - deployment, publishing intents
+- `FORGE` - unclear, needs clarification
+
+### Step 3: Execute Route
+
+Use the returned route to load the appropriate reference file.
+
+### Example Flow
+
+```
+User: "현재 프로젝트 전체적 검증"
+      ↓
+Regex: No match
+      ↓
+Semantic: "validation intent detected" → VALIDATE
+      ↓
+Execute: Skill("forge-editor:validate-full")
+```
 
 ---
 

@@ -106,12 +106,12 @@ SKILL_REFERENCES = {
     "W031": (
         "skill-design",
         "references/progressive-disclosure.md",
-        "핵심 <500words, 상세는 references/로 분리"
+        "Core <500 words, move details to references/"
     ),
     "W032": (
         "skill-design",
         "references/progressive-disclosure.md",
-        "references/ 디렉토리 생성 후 상세 내용 이동"
+        "Create references/ directory and move detailed content"
     ),
     # W033: Missing Skill() usage
     "W033": (
@@ -167,6 +167,12 @@ SKILL_REFERENCES = {
         "references/form-selection-guide.md",
         "Run form-selection-auditor agent for deep analysis"
     ),
+    # W046: Component connectivity
+    "W046": (
+        "orchestration-patterns",
+        "references/integration-checklist.md",
+        "Ensure all components are connected and referenced"
+    ),
 }
 
 
@@ -182,7 +188,7 @@ def get_skill_hint(warning_code: str, context: str = "") -> str:
 
     if ref:
         skill_name, ref_file, brief = ref
-        return f"\n       → 해결: forge-editor:{skill_name} | {ref_file} | {brief}"
+        return f"\n       → Fix: forge-editor:{skill_name} | {ref_file} | {brief}"
     return ""
 
 
@@ -1596,6 +1602,146 @@ def validate_form_selection(plugin_root: Path) -> ValidationResult:
     return result
 
 
+def validate_connectivity(plugin_root: Path) -> ValidationResult:
+    """
+    W046: Validate component connectivity.
+
+    Checks that all components are properly connected/referenced:
+    - Commands referenced in wizard routes or documentation
+    - Agents called via Task() somewhere
+    - Skills loaded via Skill() somewhere
+    - Route files reference current commands/skills
+    """
+    result = ValidationResult()
+
+    # Collect all components
+    commands_dir = plugin_root / "commands"
+    agents_dir = plugin_root / "agents"
+    skills_dir = plugin_root / "skills"
+
+    commands = set()
+    agents = set()
+    skills = set()
+
+    if commands_dir.exists():
+        for f in commands_dir.glob("*.md"):
+            commands.add(f.stem)
+
+    if agents_dir.exists():
+        for f in agents_dir.glob("*.md"):
+            agents.add(f.stem)
+
+    if skills_dir.exists():
+        for d in skills_dir.iterdir():
+            if d.is_dir() and (d / "SKILL.md").exists():
+                skills.add(d.name)
+
+    # Search all markdown and python files for references
+    all_content = ""
+    search_paths = [
+        plugin_root / "skills",
+        plugin_root / "commands",
+        plugin_root / "agents",
+        plugin_root / "hooks",
+    ]
+
+    for search_path in search_paths:
+        if search_path.exists():
+            for f in search_path.rglob("*.md"):
+                try:
+                    all_content += f.read_text(errors='ignore') + "\n"
+                except:
+                    pass
+            for f in search_path.rglob("*.py"):
+                try:
+                    all_content += f.read_text(errors='ignore') + "\n"
+                except:
+                    pass
+
+    # Check command connectivity
+    unreferenced_commands = []
+    for cmd in commands:
+        # Look for references like: /forge-editor:cmd, Skill("...cmd"), validate-full, etc.
+        patterns = [
+            f":{cmd}",           # /forge-editor:cmd
+            f'"{cmd}"',          # "cmd"
+            f"'{cmd}'",          # 'cmd'
+            f"/{cmd}",           # /cmd
+            cmd.replace("-", "_"),  # underscore variant
+        ]
+        found = any(p in all_content for p in patterns)
+        if not found:
+            unreferenced_commands.append(cmd)
+
+    # Check agent connectivity
+    unreferenced_agents = []
+    for agent in agents:
+        patterns = [
+            f'subagent_type="forge-editor:{agent}"',
+            f"subagent_type='forge-editor:{agent}'",
+            f'subagent_type: "{agent}"',        # YAML with quotes
+            f"subagent_type: '{agent}'",        # YAML with single quotes
+            f"subagent_type: {agent}",          # YAML without quotes
+            f"Task: {agent}",                   # Simple YAML task reference
+            f'"{agent}"',
+            f":{agent}",
+            agent.replace("-", "_"),
+        ]
+        found = any(p in all_content for p in patterns)
+        if not found:
+            unreferenced_agents.append(agent)
+
+    # Check skill connectivity
+    unreferenced_skills = []
+    for skill in skills:
+        patterns = [
+            f'Skill("forge-editor:{skill}"',
+            f"Skill('forge-editor:{skill}'",
+            f'"{skill}"',
+            f":{skill}",
+            f"/{skill}",
+            f"skills: {skill}",                # Frontmatter single skill
+            f"skills: [{skill}",               # Frontmatter array start
+            f", {skill}",                      # Frontmatter array middle
+            f"{skill},",                       # Frontmatter array item
+            skill.replace("-", "_"),           # underscore variant
+        ]
+        found = any(p in all_content for p in patterns)
+        if not found:
+            unreferenced_skills.append(skill)
+
+    # Report findings
+    total_unreferenced = len(unreferenced_commands) + len(unreferenced_agents) + len(unreferenced_skills)
+
+    if total_unreferenced > 0:
+        details = []
+        if unreferenced_commands:
+            details.append(f"Commands: {', '.join(sorted(unreferenced_commands))}")
+        if unreferenced_agents:
+            details.append(f"Agents: {', '.join(sorted(unreferenced_agents))}")
+        if unreferenced_skills:
+            details.append(f"Skills: {', '.join(sorted(unreferenced_skills))}")
+
+        result.add_warning(
+            "\n".join([
+                f"W046: {total_unreferenced} component(s) may not be connected/referenced",
+                "",
+                "Unreferenced components found:",
+                *[f"  • {d}" for d in details],
+                "",
+                "These components exist but aren't referenced in routes, docs, or code.",
+                "Either:",
+                "  1. Add references in wizard routes or documentation",
+                "  2. Remove if truly unused",
+                "  3. Ignore if intentionally standalone",
+            ])
+        )
+    else:
+        result.add_pass(f"W046: All {len(commands) + len(agents) + len(skills)} components properly connected")
+
+    return result
+
+
 def apply_fixes(fixes: List[Fix], dry_run: bool = False) -> Tuple[int, int]:
     """Apply all fixes. Returns (success_count, fail_count)."""
     success = 0
@@ -1708,6 +1854,7 @@ def main():
         total_result.merge(validate_emoji_usage(effective_root))
         total_result.merge(validate_test_coverage(effective_root))
         total_result.merge(validate_form_selection(effective_root))
+        total_result.merge(validate_connectivity(effective_root))
 
     # Output results
     if json_output:

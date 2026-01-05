@@ -1,11 +1,16 @@
 # VALIDATE Route
 
-**MANDATORY: Execute validation script. NO exceptions.**
+**MANDATORY: Use /validate-full command. NO exceptions.**
 
 ## Execution
 
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py
+```
+Skill("forge-editor:validate-full")
+```
+
+With arguments:
+```
+Skill("forge-editor:validate-full", args="--fix")
 ```
 
 ## Validation Checks
