@@ -19,6 +19,11 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/skill-activation-hook.py\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/workflow-skill-injector-hook.py\"",
+            "timeout": 5
           }
         ]
       }
@@ -215,6 +220,19 @@
       },
       {
         "matcher": {
+          "tool_name": "Bash",
+          "input_contains": ["forge-state.py", "wizard-"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/workflow-skill-injector-hook.py\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": {
           "tool_name": "Task",
           "input_contains": ["form-selection-auditor", "form_selection"]
         },
@@ -381,7 +399,15 @@
       "skill-access-guard.py": "Warns when skill files are read directly (use Skill() instead)",
       "pattern-compliance-guard.py": "W033/W034 runtime alerts for agents launched via Task",
       "solution-synthesis-gate.py": "W035 enforcement - warns when ANALYZE completes without Solution Synthesis",
-      "forge-state.py": "Protocol-based workflow enforcement with dependency graph"
+      "forge-state.py": "Protocol-based workflow enforcement with dependency graph",
+      "wizard-routing-hook.py": "Wizard semantic routing enforcement - injects protocol context",
+      "workflow-skill-injector-hook.py": "Auto-injects phase-appropriate skills via additionalContext"
+    },
+    "skill_injection": {
+      "trigger": "UserPromptSubmit and PostToolUse:Bash(forge-state.py wizard-*)",
+      "workflow_detection": "From forge-state.json or input pattern matching",
+      "skill_loading": "Reads SKILL.md content, truncates to 2000 chars, injects via additionalContext",
+      "supported_workflows": ["skill_creation", "agent_creation", "command_creation", "hook_design", "mcp_integration", "wizard_routing", "analyze_only", "quick_fix", "plugin_publish"]
     },
     "auto_state_updates": {
       "validate_all passed": "Auto-triggered when validate_all.py output contains 'blocking: false'",
