@@ -51,30 +51,74 @@ class Fix:
 
 
 class ValidationResult:
+    # Blocking warning codes = "incomplete" issues that should block deployment
+    # These indicate the plugin is not functional/deployable
+    BLOCKING_WARNING_CODES = {
+        'W029',  # Missing frontmatter (required structure)
+        'W030',  # Missing tools declaration (functionality broken)
+        'W033',  # Missing Skill() usage (agent won't work)
+        'W034',  # Workflow pattern violation (won't work properly)
+        'W046',  # Unreferenced components (orphans)
+    }
+
+    # Quality warning codes = style/recommendation issues that should NOT block
+    # These are advisory and don't prevent the plugin from working
+    QUALITY_WARNING_CODES = {
+        'W028',  # Enforcement keywords (documentation)
+        'W035',  # NOT YET HOOKIFIED markers (known issues)
+        'W036',  # Unnecessary files (cleanup)
+        'W037',  # Non-English content (style)
+        'W038',  # Emoji usage (style)
+        'W040',  # Form selection audit (recommendation)
+        'W045',  # Test infrastructure (recommendation)
+    }
+
     def __init__(self):
         self.errors: List[str] = []
         self.warnings: List[str] = []
         self.passed: List[str] = []
         self.fixes: List[Fix] = []  # Auto-fixable issues
+        self.found_codes: set = set()  # Track which codes were found
+
+    def _extract_code(self, msg: str) -> Optional[str]:
+        """Extract W0XX or E0XX code from message."""
+        import re
+        match = re.search(r'[WE]0\d{2}', msg)
+        return match.group(0) if match else None
 
     def add_error(self, msg: str, fix: Optional[Fix] = None):
         self.errors.append(msg)
+        code = self._extract_code(msg)
+        if code:
+            self.found_codes.add(code)
         if fix:
             self.fixes.append(fix)
 
     def add_warning(self, msg: str, fix: Optional[Fix] = None):
         self.warnings.append(msg)
+        code = self._extract_code(msg)
+        if code:
+            self.found_codes.add(code)
         if fix:
             self.fixes.append(fix)
 
     def add_pass(self, msg: str):
         self.passed.append(msg)
 
+    def has_blocking_issues(self) -> bool:
+        """Check if any blocking codes (errors or blocking warnings) were found."""
+        # All errors are blocking
+        if self.errors:
+            return True
+        # Check for blocking warning codes
+        return bool(self.found_codes & self.BLOCKING_WARNING_CODES)
+
     def merge(self, other: 'ValidationResult'):
         self.errors.extend(other.errors)
         self.warnings.extend(other.warnings)
         self.passed.extend(other.passed)
         self.fixes.extend(other.fixes)
+        self.found_codes.update(other.found_codes)
 
 
 # =============================================================================
@@ -1961,8 +2005,12 @@ def main():
 
     # Output results
     if json_output:
+        blocking = total_result.has_blocking_issues()
+        blocking_codes = sorted(total_result.found_codes & total_result.BLOCKING_WARNING_CODES)
         output = {
-            "status": "fail" if total_result.errors else ("warn" if total_result.warnings else "pass"),
+            "status": "block" if blocking else ("warn" if total_result.warnings else "pass"),
+            "blocking": blocking,
+            "blocking_codes": blocking_codes,
             "errors": total_result.errors,
             "warnings": total_result.warnings,
             "passed": len(total_result.passed),
@@ -1995,10 +2043,13 @@ def main():
         print(f"  Fixable:  {len(total_result.fixes)}")
         print()
 
-        if total_result.errors:
-            print("STATUS: ❌ DEPLOYMENT WILL FAIL")
+        if total_result.has_blocking_issues():
+            print("STATUS: ❌ BLOCKED - Must fix before proceeding")
+            blocking_codes = total_result.found_codes & total_result.BLOCKING_WARNING_CODES
+            if blocking_codes:
+                print(f"         Blocking codes: {', '.join(sorted(blocking_codes))}")
         elif total_result.warnings:
-            print("STATUS: ⚠️  DEPLOYMENT MAY HAVE ISSUES")
+            print("STATUS: ⚠️  WARNINGS - Advisory issues (not blocking)")
         else:
             print("STATUS: ✅ READY FOR DEPLOYMENT")
 
@@ -2017,13 +2068,16 @@ def main():
         print(f"   python3 {sys.argv[0]} --fix")
         print(f"   python3 {sys.argv[0]} --fix --dry-run  # Preview only")
 
-    # Exit code
-    # Only errors block (exit 1). Warnings are advisory (exit 0).
-    # This prevents hooks from blocking tool use on warnings.
-    if total_result.errors and not (fix_mode and not dry_run):
-        sys.exit(1)
+    # Exit code policy:
+    # - exit(2) = BLOCKS PreToolUse hooks (incomplete/non-functional issues)
+    # - exit(0) = ALLOWS (quality warnings are advisory only)
+    #
+    # Blocking issues: All errors + blocking warning codes (W029, W030, W033, W034, W046)
+    # Quality issues: Non-blocking warning codes (W028, W035, W036, W037, W038, W040, W045)
+    if total_result.has_blocking_issues() and not (fix_mode and not dry_run):
+        sys.exit(2)  # BLOCK - PreToolUse hooks will prevent tool execution
     else:
-        sys.exit(0)  # Warnings don't block
+        sys.exit(0)  # ALLOW - Advisory warnings don't block
 
 
 if __name__ == "__main__":

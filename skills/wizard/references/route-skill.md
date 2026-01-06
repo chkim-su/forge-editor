@@ -1,5 +1,27 @@
 # SKILL / SKILL_FROM_CODE Routes
 
+## State Machine Integration
+
+SKILL route initiates a wizard workflow:
+
+```bash
+# Initialize workflow if not active
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py init
+
+# Track phases
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py start-phase connectivity_planning
+# After Step 0
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py pass-gate connectivity_planned
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py complete-phase connectivity_planning
+
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py start-phase component_creation
+# After Step 3 (agent creates component)
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py pass-gate component_created
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py complete-phase component_creation
+```
+
+---
+
 ## SKILL Route
 
 Create a new skill from scratch.

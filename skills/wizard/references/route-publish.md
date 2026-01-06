@@ -1,5 +1,26 @@
 # PUBLISH / LOCAL_REGISTER Routes
 
+## State Machine Integration
+
+PUBLISH requires all previous gates to be passed:
+
+```bash
+# Check required gates
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py require-gate validation_passed
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py require-gate analysis_complete
+```
+
+If gates not passed → **BLOCKED**. Complete VALIDATE and ANALYZE first.
+
+After successful deployment:
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py start-phase deployment
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py complete-phase deployment
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py reset  # Workflow complete
+```
+
+---
+
 ## LOCAL_REGISTER Route
 
 Register current project as local plugin for testing.

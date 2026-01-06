@@ -4,6 +4,32 @@ Two-layer analysis: static validation + semantic understanding via diagnostic ag
 
 ---
 
+## State Machine Integration
+
+### Gate Requirement
+
+ANALYZE requires `validation_passed` gate. The hook system enforces this:
+
+```bash
+# Hook checks this before Task tool use
+python3 forge-state.py require-gate validation_passed
+```
+
+If gate not passed → **BLOCKED**. User must run VALIDATE first.
+
+### Phase Tracking
+
+```bash
+# Start analysis phase
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py start-phase analysis
+
+# After analysis complete
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py pass-gate analysis_complete
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py complete-phase analysis
+```
+
+---
+
 ## CRITICAL: Hook Output Response
 
 **PreToolUse hooks automatically run `validate_all.py` on every tool use.**

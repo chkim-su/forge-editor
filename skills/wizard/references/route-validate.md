@@ -2,6 +2,17 @@
 
 **MANDATORY: Use /validate-full command. NO exceptions.**
 
+## State Machine Integration
+
+Before running validation, initialize state if wizard workflow is active:
+
+```bash
+# Start validation phase (if workflow active)
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py start-phase validation
+```
+
+For detailed state machine patterns, see: `Skill("forge-editor:workflow-enforcement")`
+
 ## Execution
 
 ```
@@ -72,9 +83,22 @@ MUST/CRITICAL 키워드 있지만 hooks 없음 → hookify 필요
 
 ## Result Handling
 
-1. **status="fail"**: Show errors → Ask auto-fix → `--fix` → Re-validate
-2. **status="warn"**: Show warnings → Allow proceed
-3. **status="pass"**: "[PASS] 검증 통과 - 배포 준비 완료"
+1. **status="block"**:
+   - Blocking errors/warnings found
+   - Mark gate failed: `forge-state.py fail-gate validation_passed`
+   - Show errors → Ask auto-fix → `--fix` → Re-validate
+   - Loop until pass
+
+2. **status="warn"**:
+   - Advisory warnings only (not blocking)
+   - Mark gate passed: `forge-state.py pass-gate validation_passed`
+   - Show warnings → Allow proceed
+
+3. **status="pass"**:
+   - No issues found
+   - Mark gate passed: `forge-state.py pass-gate validation_passed`
+   - Complete phase: `forge-state.py complete-phase validation`
+   - "[PASS] 검증 통과 - 배포 준비 완료"
 
 ## Auto-Fix
 
