@@ -4,6 +4,36 @@
 
 Create a subagent that uses skills with isolated context.
 
+### Step 0: Connectivity Planning (BEFORE CREATION)
+
+**CRITICAL**: Plan connections BEFORE creating the agent.
+
+```yaml
+AskUserQuestion:
+  question: "How will this agent be spawned?"
+  header: "Spawn"
+  options:
+    - label: "Via Task tool"
+      description: "Task(subagent_type: 'plugin:agent-name')"
+    - label: "Via wizard route"
+      description: "Wizard routes to this agent"
+    - label: "Via command"
+      description: "Command spawns this agent"
+    - label: "Via another agent"
+      description: "Parent agent spawns this as child"
+```
+
+**REQUIRED Registrations:**
+
+| Registration | Location | Action |
+|--------------|----------|--------|
+| plugin.json | agents[] | Add agent path |
+| marketplace.json | agents[] | Add agent entry |
+
+If "Via wizard route": Also update wizard/SKILL.md routing table.
+
+**Document the connection plan before proceeding.**
+
 ### Step 1: Check for Skills
 
 ```bash
@@ -56,6 +86,21 @@ Same handling as SKILL route.
 ## COMMAND Route
 
 Create a workflow command that coordinates agents.
+
+### Step 0: Connectivity Planning (BEFORE CREATION)
+
+**CRITICAL**: Plan connections BEFORE creating the command.
+
+**REQUIRED Registrations:**
+
+| Registration | Location | Action |
+|--------------|----------|--------|
+| plugin.json | commands[] | Add command path |
+| marketplace.json | commands[] | Add command entry |
+
+The command will be invoked as: `/plugin:command-name`
+
+**Document the connection plan before proceeding.**
 
 ### Step 1: Check for Agents
 

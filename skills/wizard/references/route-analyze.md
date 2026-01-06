@@ -2,6 +2,36 @@
 
 Two-layer analysis: static validation + semantic understanding via diagnostic agents.
 
+---
+
+## CRITICAL: Hook Output Response
+
+**PreToolUse hooks automatically run `validate_all.py` on every tool use.**
+
+When hook output shows errors/warnings:
+
+1. **STOP** - Do NOT proceed with your own analysis
+2. **USE** - Hook output IS the validation result (don't duplicate)
+3. **REPORT** - Present hook findings directly to user
+4. **FIX** - Address errors before any further analysis
+
+```
+Hook output contains:
+  "ERRORS:" or "exit code 1"
+  → STOP and report these errors
+  → Ask user to fix before proceeding
+
+Hook output contains:
+  "WARNINGS:" only
+  → Report warnings
+  → Continue with Layer 2 analysis
+```
+
+**DO NOT**: Run your own bash validation when hooks already did it
+**DO NOT**: Ignore hook errors and claim "all files exist"
+
+---
+
 ## Architecture
 
 ```

@@ -4,6 +4,36 @@
 
 Create a new skill from scratch.
 
+### Step 0: Connectivity Planning (BEFORE CREATION)
+
+**CRITICAL**: Plan connections BEFORE creating the skill.
+
+```yaml
+AskUserQuestion:
+  question: "How will this skill be accessed?"
+  header: "Access"
+  options:
+    - label: "Via wizard route"
+      description: "Add pattern to wizard SKILL.md routing table"
+    - label: "Via agent"
+      description: "Agent will load this skill via Skill() tool"
+    - label: "Via command"
+      description: "Command will trigger this skill"
+    - label: "Standalone"
+      description: "User invokes directly with Skill() tool"
+```
+
+Based on answer, prepare connection plan:
+
+| Access Type | Registration Required |
+|-------------|----------------------|
+| Wizard route | Update wizard/SKILL.md routing table |
+| Via agent | Ensure agent references this skill |
+| Via command | Command .md must load this skill |
+| Standalone | marketplace.json skills[] entry |
+
+**Document the connection plan before proceeding.**
+
 ### Step 1: Load skill-design
 
 ```

@@ -1,7 +1,7 @@
 {
   "name": "forge-editor-marketplace",
   "description": "Forge Editor: Transform vague ideas into perfect skills and agents through dimensional analysis",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "owner": {
     "name": "Chanho KIM"
   },
@@ -11,7 +11,7 @@
       "name": "forge-editor",
       "description": "Forge vague ideas into clear architecture, then create skills and agents. Combines dimensional analysis with explicit skill-based development.",
       "source": "./",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "Chanho KIM"
       },

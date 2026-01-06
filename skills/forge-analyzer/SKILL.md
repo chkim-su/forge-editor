@@ -119,7 +119,7 @@ Integration:  [internal] --------- [hybrid] --------- [external]
 
 ## Output Format
 
-After analysis, recommend and route:
+After analysis, recommend and route. **Connection Plan is MANDATORY**:
 
 ```markdown
 ## Forge Analysis Result
@@ -137,8 +137,18 @@ After analysis, recommend and route:
 ### Recommended Architecture
 {Specific recommendation}
 
+### Connection Plan (REQUIRED)
+| Registration | Location | Status |
+|--------------|----------|--------|
+| {type} | {file path} | [ ] Pending |
+
+Entry points:
+- {How users/system will access this component}
+
 ### Next Step
-Routing to: {Wizard route or agent}
+1. Wire connections (registrations above)
+2. Create component via: {Wizard route or agent}
+3. Verify with validate_all.py
 ```
 
 ---
@@ -156,6 +166,85 @@ After forge analysis completes:
 
 ---
 
+## Connectivity-First Design
+
+> **CRITICAL**: Every component must be connected at creation time, not validated later.
+
+When creating ANY component, verify connectivity BEFORE implementation:
+
+### Connection Checklist
+
+| Component Type | Must Connect To | Validation |
+|---------------|-----------------|------------|
+| **Skill** | wizard routes, marketplace.json agents | W046 unreferenced check |
+| **Agent** | plugin.json agents[], marketplace.json agents | E001 undefined agent |
+| **Command** | plugin.json commands[], marketplace.json commands | E002 undefined command |
+| **Hook script** | hooks/hooks.json matchers | W046 orphaned script |
+| **Reference file** | Parent SKILL.md or agent.md | W046 disconnected file |
+
+### Pre-Creation Questions
+
+Before creating any component:
+
+```yaml
+AskUserQuestion:
+  question: "How will this component be accessed?"
+  header: "Connectivity"
+  options:
+    - label: "Via wizard route"
+      description: "Route pattern in wizard SKILL.md"
+    - label: "Via command"
+      description: "User runs /plugin:command"
+    - label: "Via agent spawning"
+      description: "Task(subagent_type: 'name')"
+    - label: "Automatically via hooks"
+      description: "Triggered by tool use patterns"
+```
+
+### Connection Blueprint
+
+When recommending architecture, ALWAYS include connection plan:
+
+```markdown
+## Connection Plan
+
+### 1. Entry Points
+- Wizard route: `{pattern}` → ROUTE_NAME
+- Command: `/plugin:{name}`
+- Agent spawn: `Task(subagent_type: "{name}")`
+
+### 2. Required Registrations
+- [ ] plugin.json → agents[] or commands[]
+- [ ] marketplace.json → agents[] or commands[]
+- [ ] wizard SKILL.md → routing table (if applicable)
+- [ ] hooks.json → matchers (if hook script)
+
+### 3. Internal References
+- Parent skill/agent → references/
+- Skill loading: Skill("plugin:{name}")
+```
+
+### Creation Workflow
+
+```
+1. Determine component type from dimension analysis
+2. Generate connection blueprint
+3. Present blueprint to user for confirmation
+4. Create component WITH connections (not after)
+5. Run validate_all.py to confirm connectivity
+```
+
+### Why Connectivity-First?
+
+| Approach | Problem |
+|----------|---------|
+| Create → Validate later | Orphaned components, W046 warnings, forgotten registration |
+| Create → Hope wizard finds it | Components invisible to routing |
+| Create → Manual wiring | Human error, inconsistent naming |
+| **Connectivity-First** | Components work immediately, no orphans |
+
+---
+
 ## Anti-Patterns
 
 | Trap | Problem | Better Approach |
@@ -164,3 +253,4 @@ After forge analysis completes:
 | Template-matching | "This looks like X" | "What are the actual requirements?" |
 | Over-engineering | "Let's add flexibility" | "What's the minimum that works?" |
 | Under-engineering | "Just make it simple" | "What complexity is unavoidable?" |
+| **Create-then-wire** | Orphaned components | Wire first, create second |
