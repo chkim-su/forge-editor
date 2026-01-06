@@ -112,12 +112,82 @@ grep -r "Read(" skills/*/SKILL.md
 
 ---
 
+## Type 6: Design-Implementation Gap (설계-구현 불일치)
+
+The most insidious type: documented patterns that aren't actually applied.
+
+### Symptoms
+```
+skills/workflow-enforcement/references/gate-design.md:
+  "Use require-gate for enforcement"
+
+scripts/forge-state.py:
+  def cmd_require_gate(name): ...  # CLI exists!
+
+hooks/hooks.json:
+  # ... but require-gate is never called!
+```
+
+### Detection Method
+
+**Static Analysis (grep-based):**
+```bash
+# 1. Extract patterns from design docs
+grep -rh "require-gate\|pass-gate\|check-gate" skills/*/references/*.md
+
+# 2. Check actual usage in hooks
+grep "require-gate\|pass-gate\|check-gate" hooks/hooks.json
+
+# 3. Gap = designed but not applied
+```
+
+**Deep Analysis (Serena MCP):**
+```python
+# Use serena-query for symbol-level analysis
+serena-query find_symbol "cmd_require_gate" --path scripts/
+serena-query find_referencing_symbols "cmd_require_gate" --path .
+
+# If referencing_symbols returns empty → unused CLI function
+```
+
+### Detection Script
+
+```bash
+python3 scripts/design-implementation-gap.py
+```
+
+### Questions
+- "This pattern is documented but where is it actually used?"
+- "Is this a planned feature or forgotten implementation?"
+- "Why document a capability that isn't wired up?"
+
+### Resolution
+
+| Situation | Action |
+|-----------|--------|
+| Forgotten implementation | Wire it up to hooks.json |
+| Planned future feature | Add "PLANNED:" prefix in docs |
+| Obsolete design | Remove from documentation |
+| Intentionally unused | Document why in design doc |
+
+### Gap Categories
+
+| Category | Example | Severity |
+|----------|---------|----------|
+| CLI-to-Hook gap | `require-gate` exists but not in hooks | High |
+| Doc-to-Code gap | Pattern described but no implementation | Medium |
+| Config-to-Runtime gap | Setting exists but never read | Medium |
+| Test-to-Feature gap | Test for feature that doesn't exist | Low |
+
+---
+
 ## Summary Table
 
-| 유형 | 감지 방법 | 조치 |
-|-----|----------|-----|
-| 미사용 스킬 선언 | frontmatter vs Skill() 비교 | 제거 또는 사용 |
-| 미사용 에이전트 | agents/ vs Task 호출 비교 | 제거 또는 통합 |
-| 미사용 Hook | hooks.json 분석 | 제거 또는 테스트 |
-| 미사용 도구 선언 | tools vs 본문 비교 | 최소화 |
-| 미사용 references | Read() 참조 추적 | 제거 또는 연결 |
+| Type | Detection Method | Action |
+|------|------------------|--------|
+| Unused skill declaration | frontmatter vs Skill() comparison | Remove or use |
+| Unused agent | agents/ vs Task call comparison | Remove or merge |
+| Unused Hook | hooks.json analysis | Remove or test |
+| Unused tool declaration | tools vs body comparison | Minimize |
+| Unused references | Read() reference tracking | Remove or connect |
+| Design-Implementation gap | Design docs vs actual wiring | Wire up or document why |

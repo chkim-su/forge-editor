@@ -21,6 +21,7 @@ Exit codes:
 """
 
 import json
+import re
 import sys
 import os
 from pathlib import Path
@@ -236,6 +237,12 @@ SKILL_REFERENCES = {
         "wizard",
         "references/route-publish.md",
         "Marketplace requires owner and plugins[] fields"
+    ),
+    # W047: Design-Implementation Gap
+    "W047": (
+        "critical-analysis-patterns",
+        "references/unused-capability-detection.md",
+        "Type 6: Documented patterns not wired up - 'cobbler's children' problem"
     ),
 }
 
@@ -1867,6 +1874,88 @@ def validate_connectivity(plugin_root: Path) -> ValidationResult:
     return result
 
 
+def validate_design_implementation_gap(plugin_root: Path) -> ValidationResult:
+    """
+    W047: Detect design-implementation gaps.
+
+    The 'cobbler's children have no shoes' problem:
+    - CLI commands exist but aren't used in hooks
+    - Patterns documented but not actually wired up
+    - Capabilities implemented but never utilized
+
+    This is a lightweight check. For deep analysis, use:
+    python3 scripts/design-implementation-gap.py --deep
+    """
+    result = ValidationResult()
+
+    forge_state = plugin_root / "scripts" / "forge-state.py"
+    hooks_json = plugin_root / "hooks" / "hooks.json"
+
+    # Skip if not a forge-editor style plugin
+    if not forge_state.exists():
+        return result
+
+    # Extract CLI commands from forge-state.py
+    try:
+        content = forge_state.read_text()
+    except Exception:
+        return result
+
+    cli_commands = set()
+    for match in re.finditer(r'elif cmd == "([^"]+)":', content):
+        cli_commands.add(match.group(1))
+
+    if not cli_commands:
+        return result
+
+    # Check hooks.json content
+    hooks_content = ""
+    if hooks_json.exists():
+        try:
+            hooks_content = hooks_json.read_text()
+        except Exception:
+            pass
+
+    # Critical enforcement commands that SHOULD be in hooks
+    enforcement_commands = {
+        "require-gate": "Gate enforcement - blocks tools without passing gate",
+        "check-deps": "Dependency validation before action",
+        "verify-protocol": "Protocol compliance verification",
+    }
+
+    gaps = []
+    for cmd, description in enforcement_commands.items():
+        if cmd in cli_commands and cmd not in hooks_content:
+            gaps.append(f"{cmd}: {description}")
+
+    if gaps:
+        hint = get_skill_hint("W047")
+        result.add_warning("\n".join([
+            f"W047: Design-Implementation Gap detected",
+            "",
+            "The following CLI commands exist but aren't wired to hooks:",
+            *[f"  • {g}" for g in gaps],
+            "",
+            "This is the 'cobbler's children' problem:",
+            "  - forge-state.py has these enforcement commands",
+            "  - But hooks.json doesn't use them",
+            "",
+            "To fix:",
+            "  1. Add PreToolUse hook: forge-state.py require-gate <name>",
+            "  2. Or document why intentionally unused",
+            "",
+            "For deep analysis: python3 scripts/design-implementation-gap.py --deep",
+            hint
+        ]))
+    else:
+        # Check if design-implementation-gap.py exists and is being self-dogfooded
+        gap_script = plugin_root / "scripts" / "design-implementation-gap.py"
+        if gap_script.exists():
+            result.add_pass("W047: Design-implementation gap detector present and enforcement commands checked")
+
+    return result
+
+
 def validate_marketplace_schema(data: dict, marketplace_path: Path) -> ValidationResult:
     """
     E021: Validate marketplace.json schema for marketplace deployment.
@@ -2078,6 +2167,7 @@ def main():
         total_result.merge(validate_test_coverage(effective_root))
         total_result.merge(validate_form_selection(effective_root))
         total_result.merge(validate_connectivity(effective_root))
+        total_result.merge(validate_design_implementation_gap(effective_root))
 
     # Output results
     if json_output:

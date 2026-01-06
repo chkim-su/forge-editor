@@ -62,7 +62,8 @@
         "./agents/architectural-smell-detector.md",
         "./agents/extraction-recommender.md",
         "./agents/semantic-librarian.md",
-        "./agents/form-selection-auditor.md"
+        "./agents/form-selection-auditor.md",
+        "./agents/design-gap-analyzer.md"
       ]
     }
   ]

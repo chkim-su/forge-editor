@@ -163,6 +163,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" require-gate validate_all 2>/dev/null || true",
+            "timeout": 3
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/pattern-compliance-guard.py\"",
             "timeout": 5
           }
@@ -356,6 +361,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" check-gate validate_all 2>/dev/null || true",
+            "timeout": 3
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" verify-protocol 2>/dev/null || true",
             "timeout": 5
           },
@@ -400,6 +410,9 @@
       "pattern-compliance-guard.py": "W033/W034 runtime alerts for agents launched via Task",
       "solution-synthesis-gate.py": "W035 enforcement - warns when ANALYZE completes without Solution Synthesis",
       "forge-state.py": "Protocol-based workflow enforcement with dependency graph",
+      "forge-state.py require-gate": "Single gate enforcement - blocks if specific gate not passed (PreToolUse:Task)",
+      "forge-state.py check-gate": "Gate status check - non-blocking status display (Stop hook)",
+      "forge-state.py check-deps": "Compound dependency validation for specific workflow steps",
       "wizard-routing-hook.py": "Wizard semantic routing enforcement - injects protocol context",
       "workflow-skill-injector-hook.py": "Auto-injects phase-appropriate skills via additionalContext"
     },
