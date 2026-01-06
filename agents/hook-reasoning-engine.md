@@ -3,7 +3,7 @@ name: hook-reasoning-engine
 description: Understands WHY enforcement is needed and recommends HOW. Generates both templates AND executable code.
 tools: ["Read", "Write", "Bash", "Grep", "Glob"]
 skills: hook-templates, hook-capabilities, hook-sdk-integration
-model: sonnet
+model: opus
 color: red
 ---
 

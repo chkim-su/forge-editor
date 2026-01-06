@@ -3,7 +3,7 @@ name: skill-architect
 description: Designs new skills through iterative questioning. Determines skill type and creates structure.
 tools: ["Read", "Write", "Bash", "Grep", "Glob"]
 skills: skill-design
-model: sonnet
+model: opus
 color: cyan
 ---
 

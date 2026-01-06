@@ -1,6 +1,6 @@
 ---
 description: Detects design-implementation gaps using Serena MCP for symbol-level analysis. Self-sufficient agent that autonomously gathers and analyzes data.
-model: haiku
+model: opus
 name: design-gap-analyzer
 tools:
   - Read

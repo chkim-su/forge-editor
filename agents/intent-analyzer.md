@@ -3,7 +3,7 @@ name: intent-analyzer
 description: Applies 6 core questions from critical-analysis-patterns. Maps intent to implementation, generates alignment scores.
 tools: ["Read", "Grep", "Glob"]
 skills: critical-analysis-patterns
-model: sonnet
+model: opus
 color: yellow
 ---
 

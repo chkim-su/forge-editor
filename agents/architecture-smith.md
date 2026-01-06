@@ -2,7 +2,7 @@
 name: architecture-smith
 description: Deep architecture analysis when forge-analyzer needs more thorough investigation. Works with extensive context to understand complex requirements.
 tools: ["Read", "Grep", "Glob", "Task", "WebSearch", "AskUserQuestion"]
-model: sonnet
+model: opus
 ---
 
 # Architecture Smith

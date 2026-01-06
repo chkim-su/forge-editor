@@ -3,7 +3,7 @@ name: skill-converter
 description: Converts existing code into reusable skills. Identifies scriptable operations and extracts patterns.
 tools: ["Read", "Write", "Bash", "Grep", "Glob"]
 skills: skill-design
-model: sonnet
+model: opus
 color: purple
 ---
 

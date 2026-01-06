@@ -3,7 +3,7 @@ name: skill-rules-designer
 description: Designs skill-rules.json configurations for automatic skill activation. Analyzes project skills and creates trigger patterns.
 tools: ["Read", "Write", "Bash", "Grep", "Glob", "AskUserQuestion"]
 skills: skill-activation-patterns, skill-catalog
-model: sonnet
+model: haiku
 color: yellow
 ---
 

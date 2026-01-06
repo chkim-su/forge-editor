@@ -3,7 +3,7 @@ name: mcp-gateway-designer
 description: Designs MCP Gateway systems for any MCP server. Determines isolation strategy (Agent Gateway vs Subprocess) and generates implementation files.
 tools: ["Read", "Write", "Bash", "Grep", "Glob", "Task", "AskUserQuestion"]
 skills: mcp-gateway-patterns, workflow-state-patterns, orchestration-patterns
-model: sonnet
+model: opus
 color: magenta
 ---
 
@@ -88,7 +88,7 @@ Based on strategy, generate:
 name: {mcp}-gateway
 description: Central gateway for {MCP_DISPLAY_NAME} MCP tools
 tools: [{mcp_tools_list}]
-model: sonnet
+model: opus
 ---
 
 # {MCP_DISPLAY_NAME} Gateway

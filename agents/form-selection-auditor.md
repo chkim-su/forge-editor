@@ -2,7 +2,7 @@
 name: form-selection-auditor
 description: LLM-based deep analysis to verify components are implemented in the optimal form (Agent/Skill/Hook/Command/MCP) based on their characteristics and requirements
 tools: ["Read", "Glob", "Grep"]
-model: sonnet
+model: opus
 ---
 
 # Form Selection Auditor Agent

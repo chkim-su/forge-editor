@@ -3,7 +3,7 @@ name: skill-orchestrator-designer
 description: Creates subagents that use skills with isolated context. Single-skill or multi-skill architecture.
 tools: ["Read", "Write", "Bash", "Grep", "Glob", "Task"]
 skills: skill-catalog, orchestration-patterns
-model: sonnet
+model: opus
 color: green
 ---
 
@@ -70,7 +70,7 @@ name: {domain}-specialist
 description: Specialized {domain} operations
 tools: [Read, Grep, Glob]
 skills: {single-skill}
-model: sonnet
+model: opus
 ---
 ```
 
@@ -95,7 +95,7 @@ name: {workflow}-orchestrator
 description: Orchestrates {workflow} across domains
 tools: [Read, Write, Edit, Bash, Grep, Glob, Task]
 skills: {skill1}, {skill2}, {skill3}
-model: sonnet
+model: opus
 ---
 ```
 
@@ -127,7 +127,7 @@ name: {domain}-smart-agent
 description: Enhanced {domain} agent with codebase awareness and memory
 tools: [Read, Write, Bash, Task, Skill, Grep, Glob]
 skills: skill-catalog, {domain-skills}
-model: sonnet
+model: opus
 color: purple
 ---
 ```

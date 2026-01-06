@@ -3,7 +3,7 @@ name: content-quality-analyzer
 description: Semantic analysis of language/emoji/comments with contextual appropriateness. Not regex - understands WHY something is appropriate or not.
 tools: ["Read", "Grep", "Glob"]
 skills: skill-design
-model: haiku
+model: opus
 color: blue
 ---
 

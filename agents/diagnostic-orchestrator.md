@@ -3,7 +3,7 @@ name: diagnostic-orchestrator
 description: Coordinates all diagnostic agents, synthesizes findings, manages context. Use for comprehensive plugin analysis.
 tools: ["Read", "Write", "Bash", "Grep", "Glob", "Task"]
 skills: critical-analysis-patterns, skill-design
-model: sonnet
+model: opus
 color: purple
 ---
 

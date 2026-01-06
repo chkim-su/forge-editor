@@ -3,7 +3,7 @@ name: architectural-smell-detector
 description: Detects patterns indicating design problems. Compares against canonical patterns, suggests refactoring.
 tools: ["Read", "Grep", "Glob"]
 skills: orchestration-patterns, mcp-gateway-patterns, critical-analysis-patterns
-model: haiku
+model: opus
 color: orange
 ---
 
