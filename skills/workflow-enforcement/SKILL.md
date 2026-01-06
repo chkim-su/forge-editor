@@ -1,71 +1,104 @@
 ---
 name: workflow-enforcement
-description: State machine patterns for enforcing sequential workflows with gates
+description: Protocol-based workflow enforcement with validation dependencies and anti-bypass protection
 category: architecture
 tools: []
 ---
 
 # Workflow Enforcement Patterns
 
-Gate-based workflow enforcement for sequential operations.
+Protocol-based workflow enforcement with dependency graphs and anti-bypass protection.
 
 ## Core Concept
 
 ```
-Phase 1 → Gate 1 → Phase 2 → Gate 2 → Phase 3
-   ↓                  ↓                  ↓
- start             require             pass
- complete          check               complete
+validate_all ──┬──> content_quality_audit
+               │
+form_audit ────┼──> functional_test ──> plugin_test
+               │
+               └──> (MCP workflows)
 ```
 
-## When to Use
+## Workflow Types
 
-- Multi-step wizards requiring sequential execution
-- Operations that must pass validation before proceeding
-- Deployment workflows with mandatory checkpoints
-- Any workflow where skipping steps is dangerous
+| Type | Description | Required Validations |
+|------|-------------|---------------------|
+| `skill_creation` | Creating new skills | validate_all, form_audit, functional_test |
+| `agent_creation` | Creating new agents | validate_all, form_audit |
+| `command_creation` | Creating commands | validate_all |
+| `plugin_publish` | Marketplace deployment | ALL validations + content_quality (blocking) |
+| `quick_fix` | Simple error fixes | validate_all only |
+| `analyze_only` | Read-only analysis | validate_all |
 
-## Key Components
+## Validation Dependencies
 
-| Component | Purpose | Script |
-|-----------|---------|--------|
-| **Phases** | Sequential work stages | `start-phase`, `complete-phase` |
-| **Gates** | Checkpoints between phases | `pass-gate`, `require-gate` |
-| **State** | Persistent workflow tracking | `.claude/local/forge-state.json` |
+```
+validate_all (no deps) ──┬──> content_quality_audit
+                         │
+form_selection_audit ────┼──> functional_test ──> plugin_test
+(no deps)                │
+```
+
+- Parallel: `validate_all` and `form_selection_audit` can run together
+- Sequential: `functional_test` requires both to pass first
+
+## Anti-Bypass Protection
+
+Agent-required validations cannot be manually passed:
+
+```bash
+# This will FAIL (manual bypass attempt)
+python3 forge-state.py mark-validation form_selection_audit passed
+
+# This will SUCCEED (triggered by hook after agent completes)
+python3 forge-state.py mark-validation form_selection_audit passed --from-hook
+```
+
+Protected validations: `form_selection_audit`, `functional_test`, `plugin_test`
+
+## Quick Start
+
+```bash
+# Initialize workflow
+python3 scripts/forge-state.py init skill_creation
+
+# Check status
+python3 scripts/forge-state.py status
+
+# Check dependencies before validation
+python3 scripts/forge-state.py check-deps functional_test
+
+# Mark validation (via hook only for protected ones)
+python3 scripts/forge-state.py mark-validation validate_all passed
+
+# Verify protocol completion
+python3 scripts/forge-state.py verify-protocol
+```
 
 ## Exit Code Policy
 
 | Exit Code | Meaning | Hook Behavior |
 |-----------|---------|---------------|
 | `exit(0)` | ALLOW | Proceed |
-| `exit(1)` | WARN | May block (depends on hook type) |
+| `exit(1)` | WARN | May block |
 | `exit(2)` | BLOCK | Always blocks in PreToolUse |
 
-## Quick Start
+## Content Quality Validation
 
-```bash
-# Initialize workflow
-python3 scripts/forge-state.py init
+W037 (Korean) and W038 (emoji) warnings:
+- **Normal mode**: Warning only (exit 0)
+- **Publish mode**: Blocking (exit 2) via `--publish-mode` flag
 
-# Start a phase
-python3 scripts/forge-state.py start-phase validation
+## MCP Integration
 
-# Pass a gate
-python3 scripts/forge-state.py pass-gate validation_passed
-
-# Complete a phase
-python3 scripts/forge-state.py complete-phase validation
-
-# Check status
-python3 scripts/forge-state.py status
-
-# Reset workflow
-python3 scripts/forge-state.py reset
-```
+- SessionStart hook auto-starts MCP daemons
+- `mcp-health-check.py` verifies daemon status
+- Optional `mcp_initialized` validation for MCP-dependent workflows
 
 ## References
 
-- `references/state-machine-patterns.md` - State machine design patterns
+- `references/state-machine-patterns.md` - State machine design
 - `references/gate-design.md` - Gate placement and design
 - `references/phase-transition.md` - Phase sequencing rules
 - `references/exit-code-guide.md` - Exit code classification
+- `references/protocol-design.md` - 6 workflow types detailed

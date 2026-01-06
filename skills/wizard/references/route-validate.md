@@ -42,6 +42,10 @@ Skill("forge-editor:validate-full", args="--fix")
 | Agent | W030 | Missing frontmatter |
 | Agent | W033 | Declared skills, no Skill() usage |
 | Workflow | W034 | Multi-stage without per-stage loading |
+| Content | W037 | Non-English content (Korean text) |
+| Content | W038 | Emoji usage in code/documentation |
+
+For content quality guidelines, see: `Skill("forge-editor:comprehensive-validation")`
 
 ## Critical Errors (E016-E020)
 

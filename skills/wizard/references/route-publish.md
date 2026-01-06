@@ -107,15 +107,28 @@ gh api repos/{owner}/{plugin-repo}/contents --jq '.[].name'
 "source": {"source": "github", "repo": "{owner}/{plugin-repo}"}
 ```
 
-### Step 4: Final Validation
+### Step 4: Content Quality Check (BLOCKING)
+
+In publish mode, content quality warnings become BLOCKING:
+- **W037**: Non-English content (Korean text) - BLOCKS
+- **W038**: Emoji usage - BLOCKS
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py
+# Run with --publish-mode to enforce content quality
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py --publish-mode
+```
+
+For content guidelines, see: `Skill("forge-editor:comprehensive-validation")`
+
+### Step 5: Final Validation
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py --publish-mode
 ```
 
 **MUST pass with status="pass"**
 
-### Step 5: Test Installation
+### Step 6: Test Installation
 
 ```bash
 # 다른 터미널에서
@@ -123,7 +136,7 @@ claude marketplace add {owner}/{repo}
 claude /plugin  # 플러그인 표시 확인
 ```
 
-### Step 6: Success
+### Step 7: Success
 
 ```markdown
 ## 배포 완료!

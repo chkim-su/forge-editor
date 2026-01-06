@@ -73,12 +73,19 @@ class ValidationResult:
         'W045',  # Test infrastructure (recommendation)
     }
 
-    def __init__(self):
+    # Codes that become BLOCKING in publish mode (content quality)
+    PUBLISH_BLOCKING_CODES = {
+        'W037',  # Non-English content - blocks publish
+        'W038',  # Emoji usage - blocks publish
+    }
+
+    def __init__(self, publish_mode: bool = False):
         self.errors: List[str] = []
         self.warnings: List[str] = []
         self.passed: List[str] = []
         self.fixes: List[Fix] = []  # Auto-fixable issues
         self.found_codes: set = set()  # Track which codes were found
+        self.publish_mode = publish_mode  # In publish mode, W037/W038 become blocking
 
     def _extract_code(self, msg: str) -> Optional[str]:
         """Extract W0XX or E0XX code from message."""
@@ -111,7 +118,12 @@ class ValidationResult:
         if self.errors:
             return True
         # Check for blocking warning codes
-        return bool(self.found_codes & self.BLOCKING_WARNING_CODES)
+        if self.found_codes & self.BLOCKING_WARNING_CODES:
+            return True
+        # In publish mode, content quality codes (W037/W038) also block
+        if self.publish_mode and (self.found_codes & self.PUBLISH_BLOCKING_CODES):
+            return True
+        return False
 
     def merge(self, other: 'ValidationResult'):
         self.errors.extend(other.errors)
@@ -119,6 +131,8 @@ class ValidationResult:
         self.passed.extend(other.passed)
         self.fixes.extend(other.fixes)
         self.found_codes.update(other.found_codes)
+        # Preserve publish_mode if either has it
+        self.publish_mode = self.publish_mode or other.publish_mode
 
 
 # =============================================================================
@@ -1657,7 +1671,7 @@ def validate_connectivity(plugin_root: Path) -> ValidationResult:
     W046: Validate component connectivity.
 
     Checks that all components are properly connected/referenced:
-    - Commands referenced in wizard routes or documentation
+    - Commands referenced in routes, commands, or documentation
     - Agents called via Task() somewhere
     - Skills loaded via Skill() somewhere
     - Route files reference current commands/skills
@@ -1781,7 +1795,7 @@ def validate_connectivity(plugin_root: Path) -> ValidationResult:
                 "",
                 "These components exist but aren't referenced in routes, docs, or code.",
                 "Either:",
-                "  1. Add references in wizard routes or documentation",
+                "  1. Add references in commands, routes, or documentation",
                 "  2. Remove if truly unused",
                 "  3. Ignore if intentionally standalone",
             ])
@@ -1916,6 +1930,7 @@ def main():
     fix_mode = "--fix" in sys.argv
     dry_run = "--dry-run" in sys.argv
     quiet = "--quiet" in sys.argv
+    publish_mode = "--publish-mode" in sys.argv  # W037/W038 become blocking
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
 
     plugin_root = Path(args[0]).resolve() if args else Path.cwd()
@@ -1976,7 +1991,7 @@ def main():
     plugins = data.get("plugins", [data])
 
     # Run all validations
-    total_result = ValidationResult()
+    total_result = ValidationResult(publish_mode=publish_mode)
 
     # Settings.json validation
     total_result.merge(validate_settings_json())
@@ -2074,6 +2089,7 @@ def main():
     #
     # Blocking issues: All errors + blocking warning codes (W029, W030, W033, W034, W046)
     # Quality issues: Non-blocking warning codes (W028, W035, W036, W037, W038, W040, W045)
+    # Publish mode: --publish-mode makes W037/W038 blocking (content quality for deployment)
     if total_result.has_blocking_issues() and not (fix_mode and not dry_run):
         sys.exit(2)  # BLOCK - PreToolUse hooks will prevent tool execution
     else:

@@ -1,6 +1,17 @@
 {
-  "$comment": "Skillmaker validation hooks - Updated to Claude Code 1.0.40+ schema",
+  "$comment": "Forge-Editor validation hooks with protocol-based workflow enforcement",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/mcp-startup.sh\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -104,13 +115,34 @@
         ]
       },
       {
-        "matcher": "Task",
+        "matcher": {
+          "tool_name": "Task",
+          "input_contains": ["functional-test", "functional_test"]
+        },
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" require-gate validation_passed",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" check-deps functional_test",
             "timeout": 3
-          },
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Task",
+          "input_contains": ["plugin-test", "plugin_test", "plugin-tester"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" check-deps plugin_test",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/pattern-compliance-guard.py\"",
@@ -141,17 +173,121 @@
         ]
       },
       {
+        "matcher": {
+          "tool_name": "Bash",
+          "input_contains": ["validate_all.py"],
+          "output_contains": ["blocking\": false", "status\": \"pass", "PASSED"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" mark-validation validate_all passed --from-hook 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Bash",
+          "input_contains": ["validate_all.py"],
+          "output_contains": ["blocking\": true", "FAILED", "errors"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" mark-validation validate_all failed --from-hook 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Task",
+          "input_contains": ["form-selection-auditor", "form_selection"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" mark-validation form_selection_audit executed --from-hook 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Task",
+          "input_contains": ["form-selection-auditor"],
+          "output_contains": ["appropriate", "PASS", "recommended", "correctly implemented"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" mark-validation form_selection_audit passed --from-hook 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Task",
+          "input_contains": ["functional-test", "functional_test"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" mark-validation functional_test executed --from-hook 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Task",
+          "input_contains": ["functional-test"],
+          "output_contains": ["PASS", "passed", "success"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" mark-validation functional_test passed --from-hook 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Task",
+          "input_contains": ["plugin-test", "plugin-tester"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" mark-validation plugin_test executed --from-hook 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Task",
+          "input_contains": ["plugin-test", "plugin-tester"],
+          "output_contains": ["PASS", "passed", "success", "All tests passed"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" mark-validation plugin_test passed --from-hook 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
         "matcher": "Task",
         "hooks": [
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py\" --skip-git",
             "timeout": 20
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/functional-test.py\" --json 2>/dev/null || true",
-            "timeout": 15
           },
           {
             "type": "command",
@@ -176,6 +312,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py\" verify-protocol 2>/dev/null || true",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/enforce-plugin-test.py\"",
             "timeout": 5
           }
@@ -186,28 +327,41 @@
   "$schema_notes": {
     "schema_version": "Claude Code 1.0.40+",
     "timeout_unit": "seconds (not milliseconds)",
+    "protocol_enforcement": {
+      "workflow_types": ["skill_creation", "agent_creation", "command_creation", "plugin_publish", "quick_fix", "analyze_only"],
+      "init_command": "python3 forge-state.py init <workflow_type>",
+      "status_command": "python3 forge-state.py status"
+    },
+    "dependency_graph": {
+      "validate_all": "No dependencies - can run first",
+      "form_selection_audit": "No dependencies - can run in parallel with validate_all",
+      "content_quality_audit": "Requires: validate_all (W037/W038 check)",
+      "functional_test": "Requires: validate_all, form_selection_audit",
+      "plugin_test": "Requires: functional_test"
+    },
     "validation_flags": {
       "--skip-git": "Skip git status checks (faster)",
       "--schema-only": "Only JSON schema validation (fastest)",
       "--pre-edit": "Validate current state before modification",
-      "--quiet": "Minimal output, errors only"
+      "--quiet": "Minimal output, errors only",
+      "--publish-mode": "W037/W038 become blocking (content quality for deployment)"
+    },
+    "mcp_integration": {
+      "startup": "SessionStart hook runs mcp-startup.sh to start MCP daemons",
+      "health_check": "mcp-health-check.py verifies daemon status",
+      "scripts": ["mcp-startup.sh", "mcp-health-check.py"]
     },
     "enforcement_hooks": {
       "skill-access-guard.py": "Warns when skill files are read directly (use Skill() instead)",
       "pattern-compliance-guard.py": "W033/W034 runtime alerts for agents launched via Task",
-      "functional-test.py": "Context-aware functional tests (structure, registration, dependencies)",
       "solution-synthesis-gate.py": "W035 enforcement - warns when ANALYZE completes without Solution Synthesis",
-      "forge-state.py": "Gate enforcement - blocks Task during wizard workflow until validation passes"
+      "forge-state.py": "Protocol-based workflow enforcement with dependency graph"
     },
-    "comprehensive_validators": {
-      "W037": "Non-English content detection (Korean text in code/docs)",
-      "W038": "Emoji usage detection (discourages emojis in code)",
-      "W040": "Form selection audit (Agent/Skill/Hook/Command appropriateness)",
-      "W045": "Test bed validation (TEST-RESULTS.md, E2E infrastructure)"
-    },
-    "semantic_agents": {
-      "semantic-librarian": "Scans all plugins for skills, outputs MANDATORY SKILL CHECK (84% activation)",
-      "form-selection-auditor": "LLM-based deep analysis of component form appropriateness"
+    "auto_state_updates": {
+      "validate_all passed": "Auto-triggered when validate_all.py output contains 'blocking: false'",
+      "form_selection_audit": "Auto-triggered when form-selection-auditor agent completes",
+      "functional_test": "Auto-triggered when functional-test agent completes",
+      "plugin_test": "Auto-triggered when plugin-tester agent completes"
     }
   }
 }
