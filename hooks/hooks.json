@@ -182,6 +182,11 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py\" --skip-git --schema-only",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/check_language.py\"",
+            "timeout": 5
           }
         ]
       },
@@ -192,6 +197,11 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py\" --skip-git --schema-only",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/check_language.py\"",
+            "timeout": 5
           }
         ]
       },
@@ -414,7 +424,19 @@
       "forge-state.py check-gate": "Gate status check - non-blocking status display (Stop hook)",
       "forge-state.py check-deps": "Compound dependency validation for specific workflow steps",
       "wizard-routing-hook.py": "Wizard semantic routing enforcement - injects protocol context",
-      "workflow-skill-injector-hook.py": "Auto-injects phase-appropriate skills via additionalContext"
+      "workflow-skill-injector-hook.py": "Auto-injects phase-appropriate skills via additionalContext",
+      "check_language.py": "W048 language detection - warns on non-English content in markdown files"
+    },
+    "gate_protocol": {
+      "principle": "Analysis mode does NOT mean no validation mode",
+      "diagnostic_gates": {
+        "analyze_only": "init -> quick validation -> analysis -> completion validation",
+        "required_validations": ["pre-analysis sanity check", "post-analysis artifact validation"]
+      },
+      "logging": {
+        "gate_transitions": "All gate transitions are logged via forge-state.py mark-validation",
+        "audit_trail": "State persisted in .claude/local/forge-state.json"
+      }
     },
     "skill_injection": {
       "trigger": "UserPromptSubmit and PostToolUse:Bash(forge-state.py wizard-*)",

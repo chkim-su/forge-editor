@@ -202,6 +202,24 @@ SKILL_REFERENCES = {
         "references/agent-gateway-template.md",
         "tools: [] = MCP 접근 불가. Daemon 패턴 또는 tools 명시 필요"
     ),
+    # W048: Non-English content detected by language hook
+    "W048": (
+        "comprehensive-validation",
+        "references/language-guidelines.md",
+        "Language detection hook; consider translating for accessibility"
+    ),
+    # W049: tools: [] conflicts with description (agent broken)
+    "W049": (
+        "agent-tools-patterns",
+        "SKILL.md",
+        "tools: [] = no tools; description implies tool usage = BROKEN"
+    ),
+    # W050: tools: [] without clear intent
+    "W050": (
+        "agent-tools-patterns",
+        "SKILL.md",
+        "tools: [] needs comment justification or removal"
+    ),
     # W037: Non-English content (Korean, etc.)
     "W037": (
         "comprehensive-validation",
@@ -720,26 +738,53 @@ def validate_frontmatter_fields(plugin_root: Path) -> ValidationResult:
                 fm["description"] = f"TODO: Add description for {agent_file.stem}"
                 needs_fix = True
                 result.add_error(f"{agent_file.name}: Missing 'description' field")
+            # Check tools configuration
             if "tools" not in fm:
-                # W030: Decision-first approach for missing tools field
-                w030_msg = [
-                    f"W030: {agent_file.name}: Missing 'tools' field.",
-                    "",
-                    "🔍 DECISION REQUIRED - 이것이 의도적인지 판단하세요:",
-                    "",
-                    "  📋 판단 후 조치:",
-                    "  ├─ YES (의도적, 모든 도구 사용) → 명시적으로 선언",
-                    "  │   tools: [\"*\"]  # 또는 tools 생략 (all tools)",
-                    "  │   주석: # Intentionally omitted for full access",
-                    "  │",
-                    "  └─ NO (실수, 제한 필요) → 필요한 도구만 명시",
-                    "      tools: [\"Read\", \"Grep\", \"Glob\"]",
-                    "      tools: []  # MCP 도구 없음",
-                    "",
-                    "⛔ tools 필드 누락을 무시하지 마세요 - 보안에 영향을 줄 수 있습니다.",
-                    get_skill_hint("W030", "agent tools")
-                ]
-                result.add_warning("\n".join(w030_msg))
+                # tools field omitted = inherit all tools (including MCP)
+                # This is usually intentional and correct for MCP-using agents
+                result.add_pass(f"{agent_file.name}: tools omitted (inherits all tools including MCP)")
+            elif fm.get("tools") == []:
+                # W049: tools: [] explicitly set = agent has NO tool access
+                description = fm.get("description", "").lower()
+                tool_keywords = ["mcp", "execute", "write", "modify", "create", "run", "inject",
+                                "serena", "playwright", "browser", "file", "bash", "shell"]
+                implies_tools = any(kw in description for kw in tool_keywords)
+
+                if implies_tools:
+                    # CRITICAL: Description implies tool usage but tools: [] blocks all access
+                    w049_msg = [
+                        f"W049: {agent_file.name}: tools: [] but description implies tool usage!",
+                        "",
+                        "🚨 CRITICAL ISSUE:",
+                        f"  Description mentions: {[kw for kw in tool_keywords if kw in description]}",
+                        "  But tools: [] means agent CANNOT use ANY tools (including MCP)",
+                        "",
+                        "🔧 FIX OPTIONS:",
+                        "  Option 1: REMOVE the tools: [] line entirely",
+                        "            (Agent will inherit all tools including MCP)",
+                        "",
+                        "  Option 2: Specify needed tools explicitly",
+                        "            tools: [\"Read\", \"Grep\", \"Bash\"]",
+                        "",
+                        "⚠️  tools: [] ≠ tools omission!",
+                        "    tools: []     → No tools (agent is non-functional)",
+                        "    tools omitted → All tools inherited (default, recommended for MCP)",
+                        "",
+                        get_skill_hint("W049", "agent tools configuration")
+                    ]
+                    result.add_warning("\n".join(w049_msg))
+                else:
+                    # tools: [] but description doesn't imply tool usage - might be intentional
+                    w050_msg = [
+                        f"W050: {agent_file.name}: tools: [] (no tool access)",
+                        "",
+                        "ℹ️  This agent cannot use any tools.",
+                        "    If this is intentional (pure thinking agent), add a comment:",
+                        "    tools: []  # Intentional: pure reasoning agent",
+                        "",
+                        "    If tools are needed, REMOVE the tools: [] line to inherit all tools.",
+                    ]
+                    result.add_warning("\n".join(w050_msg))
 
             if needs_fix:
                 result.fixes.append(Fix(f"Fix frontmatter in {agent_file.name}", fix_add_frontmatter, agent_file, fm))

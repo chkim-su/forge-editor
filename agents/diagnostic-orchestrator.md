@@ -29,6 +29,23 @@ Layer 2: Semantic Analysis (deep understanding)
 
 ## Process
 
+### Phase 0: Gate Initialization (Quality Assurance)
+
+**MANDATORY**: Before any analysis, validate current state:
+
+```bash
+# Mark analysis start in gate protocol
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py init analyze_only 2>/dev/null || true
+
+# Quick sanity check on target
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py --skip-git --quick
+```
+
+This ensures:
+- Analysis mode respects quality gates
+- Any pre-existing issues are captured
+- Gate protocol tracking is active
+
 ### Phase 1: Static Validation (Fast Feedback)
 
 ```bash
@@ -176,6 +193,27 @@ When counting MUST/REQUIRED/CRITICAL keywords, **exclude**:
 **Only count** direct imperatives to agent/user in core SKILL.md content.
 
 **Why this matters**: skillmaker teaches hookification principles. Counting teaching content as "unhooked requirements" creates false positive violations.
+
+---
+
+## Phase 6: Completion Validation (MANDATORY)
+
+**Before returning results**, run final validation:
+
+```bash
+# Final validation of any generated artifacts
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/validate_all.py --skip-git
+
+# Mark analysis complete in gate protocol
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/forge-state.py mark-validation analyze_complete passed 2>/dev/null || true
+```
+
+**Key Principle**: "Analysis mode" ≠ "No validation mode"
+
+Even diagnostic output must:
+- Be validated for structural correctness
+- Respect quality gates
+- Log completion in gate protocol
 
 ---
 

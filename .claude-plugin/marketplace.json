@@ -35,7 +35,8 @@
         "./skills/llm-sdk-guide",
         "./skills/cleanup-guide",
         "./skills/workflow-enforcement",
-        "./skills/comprehensive-validation"
+        "./skills/comprehensive-validation",
+        "./skills/agent-tools-patterns"
       ],
       "commands": [
         "./commands/wizard.md",

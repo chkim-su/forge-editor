@@ -2,7 +2,7 @@
 name: skill-architect
 description: Designs new skills through iterative questioning. Determines skill type and creates structure.
 tools: ["Read", "Write", "Bash", "Grep", "Glob"]
-skills: skill-design
+skills: skill-design, agent-tools-patterns
 model: opus
 color: cyan
 ---

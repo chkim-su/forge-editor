@@ -28,15 +28,31 @@ Compare project structure against known good patterns. Flag deviations, but dist
 ```yaml
 Pattern: "Agent/skill declared but empty or minimal"
 Symptoms:
-  - agents/ file with tools: []
+  - agents/ file with explicit tools: [] (NOT omission)
   - skills/ with only stub content
   - commands/ with TODO-only body
 Detection:
-  - tools: [] without documented reason
+  - tools: [] (explicit empty array) = agent cannot use ANY tools
+  - NOTE: tools field OMITTED = inherit all tools (OK for MCP agents)
   - Body < 50 words
   - Contains only TODO/placeholder text
 Severity: HIGH
-Question: "Is this an agent or just documentation?"
+Question: "Is tools: [] intentional? Should it be omitted for inheritance?"
+Related: W049, W050
+```
+
+### Smell 1a: Confused Tool Configuration
+```yaml
+Pattern: "tools: [] when inheritance was intended"
+Symptoms:
+  - Agent has tools: [] but description implies tool usage
+  - Agent description mentions "MCP", "execute", "modify" but tools: []
+Detection:
+  - tools: [] with description containing: MCP, execute, write, modify,
+    create, run, inject, serena, playwright, browser, file, bash, shell
+Severity: CRITICAL
+Fix: Remove tools: [] line to enable inheritance
+Related: W049
 ```
 
 ### Smell 2: Responsibility Overlap
