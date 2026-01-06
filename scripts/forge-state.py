@@ -65,7 +65,45 @@ GATES = [
 # WORKFLOW PROTOCOLS - Defines required validations and dependencies per type
 # =============================================================================
 
+# =============================================================================
+# WIZARD ROUTING PHASES - Semantic routing with mandatory context analysis
+# =============================================================================
+
+WIZARD_PHASES = [
+    "context_analysis",      # Extract keywords/topics from conversation
+    "intent_classification", # Classify intent using context
+    "route_execution"        # Execute route or context-aware Q&A
+]
+
+WIZARD_GATES = [
+    "context_extracted",     # Context analysis complete
+    "intent_classified",     # Intent classified with confidence
+    "route_determined"       # Route selected (direct or via Q&A)
+]
+
 WORKFLOW_PROTOCOLS = {
+    "wizard_routing": {
+        "description": "Wizard semantic routing with mandatory context analysis",
+        "validations": {
+            "context_analysis": {
+                "required": True,
+                "dependencies": [],
+                "description": "Extract conversation context (keywords, topics, user_work)"
+            },
+            "intent_classification": {
+                "required": True,
+                "dependencies": ["context_analysis"],
+                "description": "Classify intent using input + context"
+            },
+            "route_execution": {
+                "required": True,
+                "dependencies": ["intent_classification"],
+                "description": "Execute classified route or context-aware Q&A"
+            }
+        },
+        "phases": WIZARD_PHASES,
+        "gates": WIZARD_GATES
+    },
     "skill_creation": {
         "description": "Creating a new skill",
         "validations": {
@@ -756,6 +794,267 @@ def cmd_reset():
 
 
 # =============================================================================
+# WIZARD ROUTING COMMANDS
+# =============================================================================
+
+WIZARD_STATE_FILE = STATE_DIR / "wizard-routing.json"
+
+
+def get_wizard_state_path() -> Path:
+    """Get the wizard state file path."""
+    cwd = Path.cwd()
+    git_dir = cwd
+    while git_dir != git_dir.parent:
+        if (git_dir / ".git").exists():
+            return git_dir / WIZARD_STATE_FILE
+        git_dir = git_dir.parent
+    return cwd / WIZARD_STATE_FILE
+
+
+def load_wizard_state() -> Optional[Dict[str, Any]]:
+    """Load wizard routing state."""
+    state_path = get_wizard_state_path()
+    if not state_path.exists():
+        return None
+    try:
+        with open(state_path, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return None
+
+
+def save_wizard_state(state: Dict[str, Any]):
+    """Save wizard routing state."""
+    state_path = get_wizard_state_path()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state["last_updated"] = datetime.now().isoformat()
+    with open(state_path, 'w') as f:
+        json.dump(state, f, indent=2)
+
+
+def cmd_wizard_init(user_input: str = ""):
+    """Initialize wizard routing workflow."""
+    state = {
+        "session_id": datetime.now().strftime("%Y%m%d_%H%M%S_%f"),
+        "user_input": user_input,
+        "phases": {
+            "context_analysis": {"status": "pending", "result": None},
+            "intent_classification": {"status": "pending", "result": None},
+            "route_execution": {"status": "pending", "result": None}
+        },
+        "context": {
+            "keywords": [],
+            "topics": [],
+            "is_followup": False
+        },
+        "classification": {
+            "route": None,
+            "confidence": None
+        },
+        "created_at": datetime.now().isoformat(),
+        "last_updated": datetime.now().isoformat()
+    }
+    save_wizard_state(state)
+    print(f"Wizard routing initialized: {state['session_id']}")
+    print(f"Input: {user_input[:50]}..." if len(user_input) > 50 else f"Input: {user_input}")
+
+
+def cmd_wizard_phase(phase: str, status: str, result: str = ""):
+    """Mark wizard phase status. Status: pending, in_progress, completed, skipped."""
+    state = load_wizard_state()
+    if not state:
+        print("Error: No wizard routing session. Run 'wizard-init' first.")
+        sys.exit(2)
+
+    if phase not in WIZARD_PHASES:
+        print(f"Error: Unknown phase '{phase}'. Valid: {', '.join(WIZARD_PHASES)}")
+        sys.exit(1)
+
+    if status not in ["pending", "in_progress", "completed", "skipped"]:
+        print(f"Error: Unknown status '{status}'")
+        sys.exit(1)
+
+    # Check dependencies for completed status
+    if status == "completed":
+        phase_idx = WIZARD_PHASES.index(phase)
+        for i in range(phase_idx):
+            prev_phase = WIZARD_PHASES[i]
+            prev_status = state["phases"][prev_phase]["status"]
+            if prev_status not in ["completed", "skipped"]:
+                print("=" * 60)
+                print(f"  BLOCKED: Cannot complete '{phase}'")
+                print("=" * 60)
+                print()
+                print(f"  Previous phase '{prev_phase}' is '{prev_status}'")
+                print("  Complete previous phases first.")
+                print("=" * 60)
+                sys.exit(2)
+
+    state["phases"][phase]["status"] = status
+    if result:
+        state["phases"][phase]["result"] = result
+    state["phases"][phase]["updated_at"] = datetime.now().isoformat()
+
+    save_wizard_state(state)
+    print(f"Wizard phase '{phase}': {status}")
+
+
+def cmd_wizard_context(keywords: str = "", topics: str = "", is_followup: str = "false"):
+    """Set wizard context analysis result."""
+    state = load_wizard_state()
+    if not state:
+        print("Error: No wizard routing session.")
+        sys.exit(2)
+
+    state["context"]["keywords"] = [k.strip() for k in keywords.split(",") if k.strip()]
+    state["context"]["topics"] = [t.strip() for t in topics.split(",") if t.strip()]
+    state["context"]["is_followup"] = is_followup.lower() == "true"
+
+    # Auto-complete context_analysis phase
+    state["phases"]["context_analysis"]["status"] = "completed"
+    state["phases"]["context_analysis"]["result"] = f"keywords={keywords}, topics={topics}"
+    state["phases"]["context_analysis"]["updated_at"] = datetime.now().isoformat()
+
+    save_wizard_state(state)
+    print("Context analysis completed:")
+    print(f"  Keywords: {state['context']['keywords']}")
+    print(f"  Topics: {state['context']['topics']}")
+    print(f"  Is followup: {state['context']['is_followup']}")
+
+
+def cmd_wizard_classify(route: str, confidence: str = "medium"):
+    """Set wizard classification result."""
+    state = load_wizard_state()
+    if not state:
+        print("Error: No wizard routing session.")
+        sys.exit(2)
+
+    # Check context_analysis is completed
+    if state["phases"]["context_analysis"]["status"] != "completed":
+        print("=" * 60)
+        print("  BLOCKED: Cannot classify without context analysis")
+        print("=" * 60)
+        print()
+        print("  Run context analysis first:")
+        print("    python3 forge-state.py wizard-context 'keywords' 'topics'")
+        print("=" * 60)
+        sys.exit(2)
+
+    valid_routes = ["VALIDATE", "SKILL", "AGENT", "COMMAND", "ANALYZE", "PUBLISH",
+                    "MCP", "HOOK_DESIGN", "FORGE", "PROJECT_INIT", "LLM_INTEGRATION",
+                    "SKILL_RULES", "MENU", "CONTEXT_QA"]
+    if route.upper() not in valid_routes:
+        print(f"Warning: Non-standard route '{route}' (valid: {', '.join(valid_routes)})")
+
+    state["classification"]["route"] = route.upper()
+    state["classification"]["confidence"] = confidence
+
+    # Auto-complete intent_classification phase
+    state["phases"]["intent_classification"]["status"] = "completed"
+    state["phases"]["intent_classification"]["result"] = f"route={route}, confidence={confidence}"
+    state["phases"]["intent_classification"]["updated_at"] = datetime.now().isoformat()
+
+    save_wizard_state(state)
+    print(f"Intent classified: {route} (confidence: {confidence})")
+
+
+def cmd_wizard_require(phase: str):
+    """Require a wizard phase to be completed. Exit 2 if not."""
+    state = load_wizard_state()
+    if not state:
+        # No wizard session - this is a PROBLEM for semantic routing
+        print("=" * 60)
+        print("  BLOCKED: No wizard routing session")
+        print("=" * 60)
+        print()
+        print("  Semantic routing requires initialized session.")
+        print("  The wizard MUST call 'wizard-init' first.")
+        print("=" * 60)
+        sys.exit(2)
+
+    if phase not in WIZARD_PHASES:
+        print(f"Unknown phase: {phase}")
+        sys.exit(1)
+
+    status = state["phases"][phase]["status"]
+    if status == "completed":
+        sys.exit(0)
+    else:
+        print("=" * 60)
+        print(f"  BLOCKED: Wizard phase '{phase}' not completed")
+        print("=" * 60)
+        print()
+        print(f"  Current status: {status}")
+        print()
+
+        hints = {
+            "context_analysis": "Extract keywords and topics from conversation context",
+            "intent_classification": "Classify user intent using input + context",
+            "route_execution": "Execute the classified route or show context-aware Q&A"
+        }
+        print(f"  Required: {hints.get(phase, phase)}")
+        print()
+
+        # Show what's done
+        print("  Phase Status:")
+        for p in WIZARD_PHASES:
+            s = state["phases"][p]["status"]
+            icon = "[OK]" if s == "completed" else "[  ]" if s == "pending" else "[~~]"
+            print(f"    {icon} {p}: {s}")
+
+        print("=" * 60)
+        sys.exit(2)
+
+
+def cmd_wizard_status():
+    """Show wizard routing status."""
+    state = load_wizard_state()
+    if not state:
+        print("No active wizard routing session")
+        return
+
+    print("=" * 60)
+    print("WIZARD ROUTING STATUS")
+    print("=" * 60)
+    print(f"Session: {state.get('session_id', 'unknown')}")
+    print(f"Input: {state.get('user_input', '')[:60]}...")
+    print()
+
+    print("PHASES:")
+    for phase in WIZARD_PHASES:
+        p_state = state["phases"].get(phase, {})
+        status = p_state.get("status", "pending")
+        icon = {"completed": "[OK]", "in_progress": "[~~]", "pending": "[  ]", "skipped": "[--]"}.get(status, "[??]")
+        result = p_state.get("result", "")
+        print(f"  {icon} {phase}: {status}")
+        if result:
+            print(f"      → {result[:50]}...")
+
+    print()
+    print("CONTEXT:")
+    ctx = state.get("context", {})
+    print(f"  Keywords: {ctx.get('keywords', [])}")
+    print(f"  Topics: {ctx.get('topics', [])}")
+    print(f"  Is followup: {ctx.get('is_followup', False)}")
+
+    print()
+    print("CLASSIFICATION:")
+    clf = state.get("classification", {})
+    print(f"  Route: {clf.get('route', 'not determined')}")
+    print(f"  Confidence: {clf.get('confidence', 'n/a')}")
+
+
+def cmd_wizard_reset():
+    """Reset wizard routing state."""
+    state_path = get_wizard_state_path()
+    if state_path.exists():
+        state_path.unlink()
+        print("Wizard routing reset")
+    else:
+        print("No wizard routing session to reset")
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -819,6 +1118,38 @@ def main():
         cmd_status()
     elif cmd == "reset":
         cmd_reset()
+    # Wizard routing commands
+    elif cmd == "wizard-init":
+        user_input = sys.argv[2] if len(sys.argv) > 2 else ""
+        cmd_wizard_init(user_input)
+    elif cmd == "wizard-phase":
+        if len(sys.argv) < 4:
+            print("Error: Phase name and status required")
+            print("Usage: wizard-phase <phase> <status> [result]")
+            sys.exit(1)
+        result = sys.argv[4] if len(sys.argv) > 4 else ""
+        cmd_wizard_phase(sys.argv[2], sys.argv[3], result)
+    elif cmd == "wizard-context":
+        keywords = sys.argv[2] if len(sys.argv) > 2 else ""
+        topics = sys.argv[3] if len(sys.argv) > 3 else ""
+        is_followup = sys.argv[4] if len(sys.argv) > 4 else "false"
+        cmd_wizard_context(keywords, topics, is_followup)
+    elif cmd == "wizard-classify":
+        if len(sys.argv) < 3:
+            print("Error: Route required")
+            print("Usage: wizard-classify <route> [confidence]")
+            sys.exit(1)
+        confidence = sys.argv[3] if len(sys.argv) > 3 else "medium"
+        cmd_wizard_classify(sys.argv[2], confidence)
+    elif cmd == "wizard-require":
+        if len(sys.argv) < 3:
+            print("Error: Phase required")
+            sys.exit(1)
+        cmd_wizard_require(sys.argv[2])
+    elif cmd == "wizard-status":
+        cmd_wizard_status()
+    elif cmd == "wizard-reset":
+        cmd_wizard_reset()
     else:
         print(f"Unknown command: {cmd}")
         print("Run without arguments to see usage")

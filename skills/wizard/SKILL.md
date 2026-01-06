@@ -59,58 +59,202 @@ AskUserQuestion:
 
 ---
 
-## Semantic Routing (Fallback)
+## Semantic Routing (MANDATORY Fallback)
 
-When regex patterns fail to match, use LLM-based semantic classification:
+When regex patterns fail to match, you **MUST** follow this procedure. Do NOT skip to MENU.
 
-### Step 1: Invoke Semantic Librarian
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  MANDATORY EXECUTION PATH (Hook-Enforced)                       │
+│                                                                 │
+│  Regex Fail → Context Analysis → Classification → Route/Q&A    │
+│                                                                 │
+│  Skipping directly to MENU is a ROUTING FAILURE.               │
+│  A PreToolUse hook initializes wizard routing state.            │
+│  A PostToolUse hook verifies phases were followed.              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### State Machine Integration (REQUIRED)
+
+Each phase MUST be recorded via `forge-state.py`:
+
+```bash
+# Phase 1: After context analysis
+python3 scripts/forge-state.py wizard-context "MCP,daemon,isolation" "Bridge MCP discussion" "true"
+
+# Phase 2: After classification
+python3 scripts/forge-state.py wizard-classify "MCP" "high"
+
+# Phase 3: After route execution
+python3 scripts/forge-state.py wizard-phase route_execution completed
+```
+
+**State Commands:**
+| Command | Purpose |
+|---------|---------|
+| `wizard-context <keywords> <topics> <is_followup>` | Record context analysis |
+| `wizard-classify <route> <confidence>` | Record intent classification |
+| `wizard-phase <phase> <status>` | Update phase status |
+| `wizard-status` | Check current state |
+| `wizard-require <phase>` | Block if phase not complete |
+
+### Step 0: Conversation Context Analysis (REQUIRED)
+
+Before classifying the input, analyze the recent conversation for context clues:
+
+```yaml
+Context Extraction:
+  topics: [recent discussion topics from conversation]
+  keywords: [technical terms: MCP, skill, hook, agent, daemon, etc.]
+  user_work: [what was the user working on?]
+  is_followup: [does input reference previous discussion?]
+```
+
+**Context Keyword → Route Hints:**
+
+| Context Keywords | Likely Route |
+|------------------|--------------|
+| MCP, daemon, isolation, gateway, serena, playwright | MCP |
+| skill, knowledge, methodology | SKILL |
+| agent, subagent, automation | AGENT |
+| hook, guard, enforce, prevent | HOOK_DESIGN |
+| validate, check, test, verify | VALIDATE |
+| analyze, review, inspect | ANALYZE |
+| publish, deploy, release | PUBLISH |
+
+### Step 1: Intent Classification with Context
+
+Combine input + context for classification:
+
+```
+Input: "{user_input}"
+Context: {extracted_topics_and_keywords}
+
+Classification Logic:
+  IF context has strong signal (e.g., MCP keywords)
+    AND input is ambiguous (e.g., "어떻게 생각해?", "what do you think?")
+  THEN infer intent from context
+```
+
+### Step 2: Decision Tree
+
+```
+                    Input + Context
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+        Context Clear?         No Context
+              │                     │
+         ┌────┴────┐           Route to FORGE
+         │         │           (clarification needed)
+    High Conf   Med Conf
+         │         │
+    Route to   Context-Aware
+    inferred   Q&A (Step 3)
+    route
+```
+
+### Step 3: Context-Aware Q&A
+
+If medium confidence, ask with **context-based options** (NOT generic menu):
+
+```yaml
+# Example: After MCP discussion, user says "어떻게 생각해?"
+AskUserQuestion:
+  question: "어떤 도움이 필요하신가요?"
+  header: "Clarify"
+  options:
+    - label: "MCP 패턴 조언"
+      description: "이전 대화의 daemon/isolation 관련"
+    - label: "새 컴포넌트 생성"
+      description: "MCP gateway 스킬/에이전트 만들기"
+    - label: "다른 주제"
+      description: "MCP와 관련 없는 다른 작업"
+```
+
+**Options MUST reflect conversation context.** Generic menu is last resort only.
+
+### Step 4: Route Execution
+
+| Classification Result | Action |
+|----------------------|--------|
+| High confidence route | Execute route directly |
+| User selects from Q&A | Execute selected route |
+| "다른 주제" / No context | Route to FORGE for guided discovery |
+
+### Step 5: Optional semantic-librarian for Complex Cases
+
+For complex classification where manual context analysis is insufficient:
 
 ```
 Task(
   subagent_type="forge-editor:semantic-librarian",
-  prompt="MODE: ROUTE_CLASSIFICATION
-
-Classify this user intent into ONE route. Output ONLY the route name.
-
-Input: '{user_input}'
-
-Routes: VALIDATE, SKILL, AGENT, COMMAND, ANALYZE, PUBLISH, MCP, HOOK_DESIGN, FORGE
-
-Output format:
-Route: {ROUTE_NAME}",
+  prompt="MODE: ROUTE_CLASSIFICATION\nInput: '{user_input}'\nContext: {extracted_context}",
   model="haiku"
 )
 ```
 
-### Step 2: Route Mapping
+Use when multiple routes seem equally valid or input has complex requirements.
 
-The semantic-librarian will analyze intent and return one of:
-- `VALIDATE` - validation, checking, verification intents
-- `SKILL` - skill creation, design intents
-- `AGENT` - agent creation, automation intents
-- `ANALYZE` - analysis, review intents
-- `PUBLISH` - deployment, publishing intents
-- `FORGE` - unclear, needs clarification
+### Step 6: FORGE as Ultimate Fallback
 
-### Step 3: Execute Route
-
-Use the returned route to load the appropriate reference file.
-
-### Example Flow
+If truly ambiguous with no context clues:
 
 ```
-User: "현재 프로젝트 전체적 검증"
+Skill("forge-editor:forge-analyzer")
+```
+
+FORGE handles ambiguous intents through dimensional analysis and guided questions.
+
+### Example Flows
+
+**Example 1: Context-Aware Routing**
+```
+Conversation: [User was discussing Bridge MCP Server patterns]
+Input: "어떻게 생각해?"
       ↓
-Regex: No match
+Context Analysis: keywords=[MCP, daemon, bridge, isolation]
       ↓
-Semantic: "validation intent detected" → VALIDATE
+Classification: MCP-related opinion request (high confidence)
       ↓
-Execute: Skill("forge-editor:validate-full")
+Route: MCP → Read("references/route-mcp.md")
+       OR Context-Aware Q&A about MCP options
+```
+
+**Example 2: No Context**
+```
+Conversation: [Fresh session, no prior context]
+Input: "뭐 좀 만들어줘"
+      ↓
+Context Analysis: keywords=[], topics=[]
+      ↓
+Classification: Ambiguous, no context signal
+      ↓
+Route: FORGE → Skill("forge-editor:forge-analyzer")
+```
+
+**Example 3: Semantic Classification**
+```
+Input: "현재 프로젝트 전체적 검증"
+      ↓
+Context Analysis: keywords=[project, verification]
+      ↓
+Classification: VALIDATE intent (high confidence)
+      ↓
+Route: VALIDATE → Read("references/route-validate.md")
 ```
 
 ---
 
-## MENU
+## MENU (Last Resort Only)
+
+> **WARNING**: Only use this generic menu when:
+> 1. User explicitly requests menu (`/wizard` with no args)
+> 2. Semantic Routing completed but no context clues exist
+> 3. FORGE analysis requests menu presentation
+>
+> **Prefer Context-Aware Q&A** from Semantic Routing Step 3 when conversation context exists.
 
 ```yaml
 AskUserQuestion:

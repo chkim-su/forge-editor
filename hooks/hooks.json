@@ -100,6 +100,19 @@
         ]
       },
       {
+        "matcher": {
+          "tool_name": "Skill",
+          "input_contains": ["forge-editor:wizard", "forge-editor:wizard"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/wizard-routing-hook.py\"",
+            "timeout": 3
+          }
+        ]
+      },
+      {
         "matcher": "Skill",
         "hooks": [
           {
@@ -293,6 +306,19 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/solution-synthesis-gate.py\"",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Skill",
+          "input_contains": ["forge-editor:wizard"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/wizard-routing-hook.py\"",
+            "timeout": 3
           }
         ]
       },

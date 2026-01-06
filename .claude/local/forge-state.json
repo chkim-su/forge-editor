@@ -1,0 +1,100 @@
+{
+  "workflow_id": "20260106_150408",
+  "workflow_type": "skill_creation",
+  "current_phase": "not_started",
+  "phases": {
+    "connectivity_planning": {
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null
+    },
+    "component_creation": {
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null
+    },
+    "validation": {
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null
+    },
+    "error_fixing": {
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null
+    },
+    "analysis": {
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null
+    },
+    "deployment": {
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null
+    }
+  },
+  "gates_passed": {
+    "connectivity_planned": false,
+    "component_created": false,
+    "validation_passed": false,
+    "errors_fixed": false,
+    "analysis_complete": false
+  },
+  "validations": {
+    "validate_all": {
+      "status": "pending",
+      "required": true,
+      "dependencies": [],
+      "executed_at": null,
+      "passed_at": null
+    },
+    "form_selection_audit": {
+      "status": "passed",
+      "required": true,
+      "dependencies": [],
+      "executed_at": "2026-01-06T15:04:16.785293",
+      "passed_at": "2026-01-06T15:04:16.785293",
+      "claimed_at": "2026-01-06T15:04:08.842146",
+      "verified_by": "hook"
+    },
+    "functional_test": {
+      "status": "pending",
+      "required": true,
+      "dependencies": [
+        "validate_all",
+        "form_selection_audit"
+      ],
+      "executed_at": null,
+      "passed_at": null
+    },
+    "plugin_test": {
+      "status": "pending",
+      "required": false,
+      "dependencies": [
+        "functional_test"
+      ],
+      "executed_at": null,
+      "passed_at": null
+    }
+  },
+  "history": [
+    {
+      "timestamp": "2026-01-06T15:04:08.812327",
+      "action": "init",
+      "details": "Workflow initialized: skill_creation"
+    },
+    {
+      "timestamp": "2026-01-06T15:04:08.842168",
+      "action": "validation_claimed_manually",
+      "details": "form_selection_audit (blocked - requires agent)"
+    },
+    {
+      "timestamp": "2026-01-06T15:04:16.785311",
+      "action": "validation_passed",
+      "details": "form_selection_audit (via hook)"
+    }
+  ],
+  "created_at": "2026-01-06T15:04:08.812322",
+  "last_updated": "2026-01-06T15:04:16.785358"
+}
