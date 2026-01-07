@@ -61,8 +61,38 @@ def get_user_input(tool_input: dict) -> str:
     return tool_input.get("args", "")
 
 
+# Routing patterns from wizard/SKILL.md - MUST check these FIRST
+ROUTING_PATTERNS = {
+    "MCP": ["mcp", "gateway", "isolation", "serena", "playwright", "daemon"],
+    "LLM_INTEGRATION": ["llm", "sdk", "background agent"],
+    "SKILL": ["skill create", "skill 만들", "스킬 생성"],
+    "SKILL_FROM_CODE": ["convert", "from code", "변환"],
+    "AGENT": ["agent", "subagent", "에이전트"],
+    "COMMAND": ["command", "workflow"],
+    "HOOK_DESIGN": ["hook design", "proper hook", "hook 설계"],
+    "SKILL_RULES": ["skill-rules", "auto-activation", "trigger"],
+    "ANALYZE": ["analyze", "review", "분석"],
+    "VALIDATE": ["validate", "check", "검증"],
+    "PUBLISH": ["publish", "deploy", "배포"],
+    "LOCAL_REGISTER": ["register", "local", "등록"],
+    "PROJECT_INIT": ["init", "new project", "새 프로젝트"],
+    "FORGE": ["forge", "clarify", "idea", "vague", "unsure"],
+}
+
+
+def detect_pattern_matches(user_input: str) -> list[tuple[str, str]]:
+    """Detect routing patterns in user input. Returns list of (route, matched_keyword)."""
+    input_lower = user_input.lower()
+    matches = []
+    for route, keywords in ROUTING_PATTERNS.items():
+        for kw in keywords:
+            if kw in input_lower:
+                matches.append((route, kw))
+    return matches
+
+
 def handle_pre_tool_use(input_data: dict):
-    """PreToolUse: Initialize wizard routing session."""
+    """PreToolUse: Initialize wizard routing session with pattern detection."""
     tool_input = input_data.get("tool_input", {})
 
     if not is_wizard_skill(tool_input):
@@ -70,11 +100,16 @@ def handle_pre_tool_use(input_data: dict):
 
     user_input = get_user_input(tool_input)
 
+    # Auto-detect routing patterns
+    pattern_matches = detect_pattern_matches(user_input)
+
     # Initialize new wizard routing session
     state = {
         "session_id": datetime.now().strftime("%Y%m%d_%H%M%S_%f"),
         "user_input": user_input,
+        "detected_patterns": [{"route": r, "keyword": k} for r, k in pattern_matches],
         "phases": {
+            "pattern_check": {"status": "pending", "result": None},
             "context_analysis": {"status": "pending", "result": None},
             "intent_classification": {"status": "pending", "result": None},
             "route_execution": {"status": "pending", "result": None}
@@ -93,13 +128,44 @@ def handle_pre_tool_use(input_data: dict):
 
     save_state(state)
 
+    # Build pattern match alert if patterns detected
+    pattern_alert = ""
+    if pattern_matches:
+        detected_routes = list(set(r for r, _ in pattern_matches))
+        matched_keywords = [k for _, k in pattern_matches]
+        pattern_alert = f"""
+## PATTERN MATCH DETECTED - USE THIS ROUTE
+
+The following routing keywords were detected in user input:
+- **Keywords found**: {', '.join(f'`{k}`' for k in matched_keywords)}
+- **Matched routes**: {', '.join(detected_routes)}
+
+**You MUST route to: `{detected_routes[0]}`** (highest priority match)
+
+DO NOT override with semantic analysis. Pattern matching takes precedence.
+"""
+
     # Inject context reminder about semantic routing protocol
-    additional_context = """
+    additional_context = f"""{pattern_alert}
 ## Wizard Routing Protocol (MANDATORY)
 
-A new wizard routing session has been initialized. You MUST follow this protocol:
+### STEP 0: Pattern Matching (ALWAYS FIRST)
 
-### Phase 1: Context Analysis (REQUIRED FIRST)
+**Check the routing table BEFORE any semantic analysis:**
+
+| Pattern | Route |
+|---------|-------|
+| mcp, gateway, isolation, serena, playwright | MCP |
+| llm, sdk, background agent | LLM_INTEGRATION |
+| skill create | SKILL |
+| agent, subagent | AGENT |
+| hook design | HOOK_DESIGN |
+| analyze, review | ANALYZE |
+| validate, check | VALIDATE |
+
+**If a pattern matches → Route directly. Skip semantic analysis.**
+
+### Phase 1: Semantic Context Analysis (ONLY if no pattern match)
 Extract from conversation:
 - keywords: technical terms (MCP, skill, hook, etc.)
 - topics: what was being discussed
@@ -123,9 +189,10 @@ Mark completion with:
 python3 scripts/forge-state.py wizard-phase route_execution completed
 ```
 
-### WARNING
-Skipping directly to MENU without context analysis is a ROUTING FAILURE.
-The Stop hook will detect if phases were skipped.
+### CRITICAL WARNING
+- Pattern matching MUST happen BEFORE semantic analysis
+- If `mcp` is in user input → Route to MCP, not SKILL
+- Overriding pattern match with semantic judgment is a ROUTING FAILURE
 """
 
     # Output additional context for injection
