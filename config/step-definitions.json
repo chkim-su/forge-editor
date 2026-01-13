@@ -1,0 +1,201 @@
+{
+  "$comment": "Per-command sequential step definitions with tool gates and completion triggers",
+  "commands": {
+    "wizard": {
+      "workflow_type": "wizard_routing",
+      "steps": [
+        {
+          "name": "pattern_check",
+          "step_number": 1,
+          "description": "Check routing patterns in user input",
+          "allowed_tools": ["Read", "Grep", "Glob"],
+          "completion_triggers": [
+            {"type": "task_agent", "agent_pattern": "form-selection-auditor"}
+          ]
+        },
+        {
+          "name": "form_audit",
+          "step_number": 2,
+          "description": "Audit component form selection",
+          "allowed_tools": ["Read", "Grep", "Glob", "Task"],
+          "completion_triggers": [
+            {"type": "task_agent", "agent_pattern": "form-selection-auditor", "require_pass": true}
+          ]
+        },
+        {
+          "name": "implement",
+          "step_number": 3,
+          "description": "Execute implementation",
+          "allowed_tools": ["Read", "Grep", "Glob", "Write", "Edit", "Bash", "Task"],
+          "completion_triggers": [
+            {"type": "validation_passed", "validation": "validate_all"}
+          ]
+        }
+      ]
+    },
+    "validate-full": {
+      "workflow_type": "quick_fix",
+      "steps": [
+        {
+          "name": "schema_check",
+          "step_number": 1,
+          "description": "Run schema validation",
+          "allowed_tools": ["Bash", "Read", "Grep", "Glob"],
+          "allowed_bash_patterns": ["validate_all.py", "validate_skill.py"],
+          "completion_triggers": [
+            {"type": "bash_exit_code", "command_pattern": "validate", "exit_code": 0}
+          ]
+        },
+        {
+          "name": "fix",
+          "step_number": 2,
+          "description": "Fix identified issues",
+          "allowed_tools": ["Read", "Grep", "Glob", "Write", "Edit"],
+          "completion_triggers": [
+            {"type": "manual", "command": "complete-step fix"}
+          ]
+        },
+        {
+          "name": "verify",
+          "step_number": 3,
+          "description": "Verify fixes with re-validation",
+          "allowed_tools": ["Bash", "Read", "Grep", "Glob"],
+          "allowed_bash_patterns": ["validate_all.py"],
+          "completion_triggers": [
+            {"type": "bash_exit_code", "command_pattern": "validate", "exit_code": 0}
+          ]
+        }
+      ]
+    },
+    "validate-plugin": {
+      "workflow_type": "plugin_publish",
+      "steps": [
+        {
+          "name": "validate_all",
+          "step_number": 1,
+          "description": "Full schema and structure validation",
+          "allowed_tools": ["Bash", "Read", "Grep", "Glob"],
+          "allowed_bash_patterns": ["validate_all.py"],
+          "completion_triggers": [
+            {"type": "validation_passed", "validation": "validate_all"}
+          ]
+        },
+        {
+          "name": "content_quality",
+          "step_number": 2,
+          "description": "Korean/emoji/comment quality audit",
+          "allowed_tools": ["Read", "Grep", "Glob", "Task"],
+          "completion_triggers": [
+            {"type": "task_agent", "agent_pattern": "content-quality", "require_pass": true}
+          ]
+        },
+        {
+          "name": "functional_test",
+          "step_number": 3,
+          "description": "Registration and dependency verification",
+          "allowed_tools": ["Read", "Bash", "Task", "Grep", "Glob"],
+          "allowed_bash_patterns": ["functional-test.py", "register"],
+          "completion_triggers": [
+            {"type": "task_agent", "agent_pattern": "functional-test", "require_pass": true}
+          ]
+        },
+        {
+          "name": "plugin_test",
+          "step_number": 4,
+          "description": "Isolated environment testing",
+          "allowed_tools": ["Read", "Bash", "Task", "Grep", "Glob"],
+          "allowed_bash_patterns": ["plugin-test", "run-tests"],
+          "completion_triggers": [
+            {"type": "task_agent", "agent_pattern": "plugin-test", "require_pass": true}
+          ]
+        },
+        {
+          "name": "publish",
+          "step_number": 5,
+          "description": "Marketplace registration",
+          "allowed_tools": ["Bash", "Read"],
+          "allowed_bash_patterns": ["register_marketplace.py", "publish"],
+          "completion_triggers": [
+            {"type": "bash_exit_code", "command_pattern": "register", "exit_code": 0}
+          ]
+        }
+      ]
+    },
+    "diagnose": {
+      "workflow_type": "analyze_only",
+      "steps": [
+        {
+          "name": "analyze",
+          "step_number": 1,
+          "description": "Codebase analysis",
+          "allowed_tools": ["Read", "Grep", "Glob", "Task"],
+          "completion_triggers": [
+            {"type": "task_complete"},
+            {"type": "manual", "command": "complete-step analyze"}
+          ]
+        }
+      ]
+    },
+    "run-tests": {
+      "workflow_type": "quick_fix",
+      "steps": [
+        {
+          "name": "run",
+          "step_number": 1,
+          "description": "Execute tests",
+          "allowed_tools": ["Bash", "Read", "Grep", "Glob", "Task"],
+          "completion_triggers": [
+            {"type": "bash_exit_code", "command_pattern": "test", "exit_code": 0}
+          ]
+        },
+        {
+          "name": "fix",
+          "step_number": 2,
+          "description": "Fix failing tests",
+          "allowed_tools": ["Read", "Grep", "Glob", "Write", "Edit"],
+          "completion_triggers": [
+            {"type": "manual", "command": "complete-step fix"}
+          ]
+        },
+        {
+          "name": "verify",
+          "step_number": 3,
+          "description": "Re-run tests",
+          "allowed_tools": ["Bash", "Read", "Grep", "Glob"],
+          "completion_triggers": [
+            {"type": "bash_exit_code", "command_pattern": "test", "exit_code": 0}
+          ]
+        }
+      ]
+    },
+    "test-env": {
+      "workflow_type": "quick_fix",
+      "steps": [
+        {
+          "name": "setup",
+          "step_number": 1,
+          "description": "Setup test environment",
+          "allowed_tools": ["Bash", "Read", "Grep", "Glob", "Write"],
+          "completion_triggers": [
+            {"type": "bash_pattern", "pattern": "test-env"}
+          ]
+        },
+        {
+          "name": "test",
+          "step_number": 2,
+          "description": "Run tests in environment",
+          "allowed_tools": ["Bash", "Read", "Grep", "Glob", "Task"],
+          "completion_triggers": [
+            {"type": "bash_exit_code", "command_pattern": "test", "exit_code": 0}
+          ]
+        }
+      ]
+    }
+  },
+  "global_settings": {
+    "always_allowed_tools": ["TodoWrite", "WebSearch", "WebFetch", "AskUserQuestion"],
+    "read_only_tools": ["Read", "Grep", "Glob"],
+    "default_timeout_seconds": 120,
+    "max_step_attempts": 3
+  }
+}
