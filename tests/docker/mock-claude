@@ -1,0 +1,148 @@
+#!/bin/bash
+# Mock Claude CLI for testing
+# Simulates Claude Code CLI behavior for E2E tests
+
+set -euo pipefail
+
+MOCK_STATE_FILE="${CLAUDE_WORKING_DIR:-.}/.claude/local/mock-claude-state.json"
+
+# Initialize mock state
+init_state() {
+    mkdir -p "$(dirname "$MOCK_STATE_FILE")"
+    echo '{"sessions": [], "current_session": null}' > "$MOCK_STATE_FILE"
+}
+
+# Read mock state
+read_state() {
+    if [[ -f "$MOCK_STATE_FILE" ]]; then
+        cat "$MOCK_STATE_FILE"
+    else
+        init_state
+        cat "$MOCK_STATE_FILE"
+    fi
+}
+
+# Write mock state
+write_state() {
+    echo "$1" > "$MOCK_STATE_FILE"
+}
+
+# Simulate tool execution
+simulate_tool() {
+    local tool_name="$1"
+    local tool_input="$2"
+    
+    echo "=== Mock Tool Execution ===" >&2
+    echo "Tool: $tool_name" >&2
+    echo "Input: $tool_input" >&2
+    
+    case "$tool_name" in
+        "Task")
+            # Simulate Task tool - extract subagent_type
+            local subagent=$(echo "$tool_input" | jq -r '.subagent_type // "unknown"')
+            echo "Simulating agent: $subagent" >&2
+            
+            # Trigger hooks
+            trigger_hook "PostToolUse" "{\"tool_name\": \"Task\", \"tool_input\": $tool_input}"
+            
+            echo "{\"success\": true, \"agent\": \"$subagent\", \"result\": \"Simulated execution\"}"
+            ;;
+        "Read")
+            local file_path=$(echo "$tool_input" | jq -r '.file_path // ""')
+            if [[ -f "$file_path" ]]; then
+                cat "$file_path"
+            else
+                echo "Error: File not found: $file_path" >&2
+                exit 1
+            fi
+            ;;
+        "Write")
+            local file_path=$(echo "$tool_input" | jq -r '.file_path // ""')
+            local content=$(echo "$tool_input" | jq -r '.content // ""')
+            echo "$content" > "$file_path"
+            echo "{\"success\": true}"
+            ;;
+        "Bash")
+            local command=$(echo "$tool_input" | jq -r '.command // ""')
+            eval "$command"
+            ;;
+        *)
+            echo "{\"success\": true, \"mock\": true}"
+            ;;
+    esac
+}
+
+# Trigger hook event
+trigger_hook() {
+    local event="$1"
+    local hook_input="$2"
+    
+    local hook_script="${CLAUDE_PLUGIN_ROOT}/hooks/forge-hook.py"
+    if [[ -f "$hook_script" ]]; then
+        echo "$hook_input" | python3 "$hook_script" "$(echo "$event" | tr '[:upper:]' '[:lower:]' | sed 's/\([a-z]\)\([A-Z]\)/\1-\2/g' | tr '[:upper:]' '[:lower:]')" 2>&1 || true
+    fi
+}
+
+# Main CLI simulation
+main() {
+    local command="${1:-help}"
+    shift || true
+    
+    case "$command" in
+        "help"|"--help"|"-h")
+            echo "Mock Claude CLI for testing"
+            echo ""
+            echo "Commands:"
+            echo "  session start    Start new session"
+            echo "  session end      End current session"
+            echo "  tool <name>      Execute a tool"
+            echo "  hook <event>     Trigger a hook"
+            echo "  state            Show mock state"
+            echo ""
+            ;;
+        "session")
+            local subcommand="${1:-status}"
+            shift || true
+            case "$subcommand" in
+                "start")
+                    echo "Starting mock session..."
+                    trigger_hook "SessionStart" "{}"
+                    echo "Session started"
+                    ;;
+                "end")
+                    echo "Ending mock session..."
+                    trigger_hook "Stop" "{}"
+                    echo "Session ended"
+                    ;;
+                "status")
+                    read_state | jq .
+                    ;;
+            esac
+            ;;
+        "tool")
+            local tool_name="${1:-unknown}"
+            local tool_input="${2:-{}}"
+            simulate_tool "$tool_name" "$tool_input"
+            ;;
+        "hook")
+            local event="${1:-UserPromptSubmit}"
+            local input="${2:-{}}"
+            trigger_hook "$event" "$input"
+            ;;
+        "state")
+            read_state | jq .
+            ;;
+        "prompt")
+            # Simulate user prompt submission
+            local prompt="$*"
+            trigger_hook "UserPromptSubmit" "{\"prompt\": \"$prompt\"}"
+            ;;
+        *)
+            echo "Unknown command: $command" >&2
+            echo "Run 'claude help' for usage" >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

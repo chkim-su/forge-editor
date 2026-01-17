@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  forge-test:
+    build:
+      context: ../..
+      dockerfile: tests/docker/Dockerfile
+    volumes:
+      # Mount forge plugin (read-only for safety)
+      - ../../:/workspace/forge:ro
+      # Persist test workspace state across restarts
+      - test-workspace:/workspace/test
+      # Named volume for .claude directory (state persistence)
+      - claude-state:/workspace/test/.claude
+    environment:
+      - CLAUDE_WORKING_DIR=/workspace/test
+      - CLAUDE_PLUGIN_ROOT=/workspace/forge
+    tty: true
+    stdin_open: true
+    # Default to headless mode
+    command: ["headless"]
+
+  # Interactive mode with tmux
+  forge-test-interactive:
+    build:
+      context: ../..
+      dockerfile: tests/docker/Dockerfile
+    volumes:
+      - ../../:/workspace/forge:ro
+      - test-workspace:/workspace/test
+      - claude-state:/workspace/test/.claude
+    environment:
+      - CLAUDE_WORKING_DIR=/workspace/test
+      - CLAUDE_PLUGIN_ROOT=/workspace/forge
+    tty: true
+    stdin_open: true
+    command: ["interactive"]
+
+  # Quick validation using legacy script
+  forge-validate:
+    build:
+      context: ../..
+      dockerfile: tests/docker/Dockerfile
+    volumes:
+      - ../../:/workspace/forge:ro
+    environment:
+      - CLAUDE_PLUGIN_ROOT=/workspace/forge
+    command: >
+      bash -c "
+        echo '=== Forge Plugin Validation ===' &&
+        python3 /workspace/forge/tests/validate-plugin.py &&
+        echo '=== Validation Complete ==='
+      "
+
+  # Schema validation with auto-fix capability
+  forge-schema-validate:
+    build:
+      context: ../..
+      dockerfile: tests/docker/Dockerfile
+    volumes:
+      - ../../:/workspace/forge:ro
+    environment:
+      - CLAUDE_PLUGIN_ROOT=/workspace/forge
+    command: >
+      bash -c "
+        echo '=== Forge Schema Validation ===' &&
+        python3 /workspace/forge/scripts/schema-validator.py /workspace/forge &&
+        echo '=== Validation Complete ==='
+      "
+
+  # Schema validation E2E tests
+  forge-schema-tests:
+    build:
+      context: ../..
+      dockerfile: tests/docker/Dockerfile
+    volumes:
+      # Read-write needed for auto-fix tests
+      - ../../:/workspace/forge
+    environment:
+      - CLAUDE_PLUGIN_ROOT=/workspace/forge
+    command: >
+      bash -c "
+        echo '=== Forge Schema Validation E2E Tests ===' &&
+        python3 /workspace/forge/tests/e2e-schema-validation.py --verbose &&
+        echo '=== Tests Complete ==='
+      "
+
+  # Full test suite (workflow + schema)
+  forge-all-tests:
+    build:
+      context: ../..
+      dockerfile: tests/docker/Dockerfile
+    volumes:
+      - ../../:/workspace/forge
+      - test-workspace:/workspace/test
+      - claude-state:/workspace/test/.claude
+    environment:
+      - CLAUDE_WORKING_DIR=/workspace/test
+      - CLAUDE_PLUGIN_ROOT=/workspace/forge
+    tty: true
+    stdin_open: true
+    command: ["all-tests"]
+
+  # Refactor Plugin E2E Test (tmux-based interactive)
+  forge-refactor-plugin-test:
+    build:
+      context: ../..
+      dockerfile: tests/docker/Dockerfile
+    volumes:
+      - ../../:/workspace/forge:ro
+      - test-workspace:/workspace/test
+      - claude-state:/workspace/test/.claude
+    environment:
+      - CLAUDE_WORKING_DIR=/workspace/test
+      - CLAUDE_PLUGIN_ROOT=/workspace/forge
+      - RUNNING_IN_DOCKER=1
+    tty: true
+    stdin_open: true
+    command: ["refactor-plugin-test"]
+
+volumes:
+  test-workspace:
+    driver: local
+  claude-state:
+    driver: local

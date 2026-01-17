@@ -1,0 +1,25 @@
+{
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "matcher": {
+        "tool_name": "Write"
+      },
+      "hooks": [
+        {
+          "type": "command",
+          "command": "echo 'pre-tool'"
+        }
+      ]
+    },
+    {
+      "event": "InvalidEvent",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "echo 'invalid'"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "description": "A plugin with fixable issues",
+  "agents": [
+    {
+      "name": "unnamed-agent",
+      "description": "Agent without name in frontmatter",
+      "path": "agents/unnamed-agent.md"
+    }
+  ],
+  "skills": [
+    {
+      "name": "fixable-skill",
+      "description": "Skill without triggers",
+      "path": "skills/fixable-skill/SKILL.md"
+    }
+  ]
+}

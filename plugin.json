@@ -1,0 +1,92 @@
+{
+  "name": "forge",
+  "version": "3.0.0",
+  "description": "General-purpose design guidance system - 6-phase workflow for plugins, refactoring, and any solution type",
+  "skills": [
+    {
+      "name": "forge-guide",
+      "description": "Usage guide for Forge design workflow",
+      "path": "skills/forge-guide/SKILL.md"
+    },
+    {
+      "name": "solution-router",
+      "description": "Guide for determining what type of solution to build",
+      "path": "skills/solution-router/SKILL.md"
+    },
+    {
+      "name": "schema-registry",
+      "description": "Schema templates and validation rules for different solution types",
+      "path": "skills/schema-registry/SKILL.md"
+    },
+    {
+      "name": "refactor-guide",
+      "description": "Guide for refactoring existing projects with rollback safety",
+      "path": "skills/refactor-guide/SKILL.md"
+    },
+    {
+      "name": "structured-dialogue",
+      "description": "Standard question format for Forge workflow phases",
+      "path": "skills/structured-dialogue/SKILL.md"
+    }
+  ],
+  "agents": [
+    {
+      "name": "input-agent",
+      "description": "Normalize user intent into clear problem statement",
+      "path": "agents/input-agent.md"
+    },
+    {
+      "name": "analysis-agent",
+      "description": "Analyze codebase reality and identify patterns for any project type",
+      "path": "agents/analysis-agent.md"
+    },
+    {
+      "name": "design-agent",
+      "description": "Propose design options with neutral trade-offs",
+      "path": "agents/design-agent.md"
+    },
+    {
+      "name": "preview-agent",
+      "description": "Preview changes that will be made before execution (dry-run)",
+      "path": "agents/preview-agent.md"
+    },
+    {
+      "name": "execute-agent",
+      "description": "Implement the confirmed design",
+      "path": "agents/execute-agent.md"
+    },
+    {
+      "name": "validate-agent",
+      "description": "Validates plugin schema, detects errors, auto-fixes safe issues, and guides on manual fixes",
+      "path": "agents/validate-agent.md"
+    }
+  ],
+  "commands": [
+    {
+      "name": "forge",
+      "description": "Start Forge design workflow (full 6-phase)",
+      "path": "commands/forge.md"
+    },
+    {
+      "name": "diagnose",
+      "description": "Quick codebase analysis without full workflow",
+      "path": "commands/diagnose.md"
+    },
+    {
+      "name": "design",
+      "description": "Design options synthesis without full workflow",
+      "path": "commands/design.md"
+    },
+    {
+      "name": "refactor",
+      "description": "Guided refactoring workflow with safety checkpoints",
+      "path": "commands/refactor.md"
+    },
+    {
+      "name": "validate",
+      "description": "Validate plugin schema, structure, and run auto-fixes",
+      "path": "commands/validate.md"
+    }
+  ],
+  "hooks": "hooks/hooks.json"
+}

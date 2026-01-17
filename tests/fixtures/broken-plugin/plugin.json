@@ -1,0 +1,26 @@
+{
+  "name": "broken-plugin",
+  "version": "1.0",
+  "agents": [
+    {
+      "name": "bad-agent",
+      "description": "Agent with invalid tools",
+      "path": "agents/bad-agent.md"
+    }
+  ],
+  "skills": [
+    {
+      "name": "bad-skill",
+      "description": "Skill with empty triggers",
+      "path": "skills/bad-skill/SKILL.md"
+    }
+  ],
+  "commands": [
+    {
+      "name": "bad-command",
+      "description": "Command missing description",
+      "path": "commands/bad-command.md"
+    }
+  ],
+  "hooks": "hooks/hooks.json"
+}

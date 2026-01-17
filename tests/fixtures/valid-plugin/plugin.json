@@ -1,0 +1,26 @@
+{
+  "name": "valid-plugin",
+  "version": "1.0.0",
+  "description": "A fully valid plugin for baseline testing",
+  "agents": [
+    {
+      "name": "good-agent",
+      "description": "A valid agent",
+      "path": "agents/good-agent.md"
+    }
+  ],
+  "skills": [
+    {
+      "name": "good-skill",
+      "description": "A valid skill",
+      "path": "skills/good-skill/SKILL.md"
+    }
+  ],
+  "commands": [
+    {
+      "name": "good-command",
+      "description": "A valid command",
+      "path": "commands/good-command.md"
+    }
+  ]
+}
